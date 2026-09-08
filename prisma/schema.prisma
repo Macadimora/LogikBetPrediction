@@ -1,0 +1,308 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String                  @id @default(cuid())
+  name              String?
+  email             String?                 @unique
+  emailVerified     DateTime?
+  image             String?
+  passwordHash      String?
+  role              UserRole                @default(USER)
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  authVersion       Int                     @default(0)
+  accounts          Account[]
+  notifications     Notification[]
+  notificationPrefs NotificationPreference?
+  payments          Payment[]
+  predictionViews   PredictionView[]
+  sessions          Session[]
+  subscriptions     Subscription[]
+
+  @@index([email])
+  @@index([role])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Fixture {
+  id          String       @id @default(cuid())
+  externalId  Int          @unique
+  kickoffTime DateTime
+  leagueId    Int?
+  leagueName  String
+  homeTeam    String
+  awayTeam    String
+  homeTeamElo Float?
+  awayTeamElo Float?
+  status      String
+  homeScore   Int?
+  awayScore   Int?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  predictions Prediction[]
+
+  @@index([kickoffTime])
+  @@index([leagueId])
+  @@index([status])
+}
+
+model Prediction {
+  id                 String           @id @default(cuid())
+  fixtureId          String
+  access             PredictionAccess @default(FREE)
+  source             PredictionSource
+  status             PredictionStatus @default(DRAFT)
+  pHome              Float?
+  pDraw              Float?
+  pAway              Float?
+  predictedHomeScore Int?
+  predictedAwayScore Int?
+  confidence         Float?
+  title              String?
+  analysis           String?
+  publishedAt        DateTime?
+  scheduledFor       DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  fixture            Fixture          @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+  predictionViews    PredictionView[]
+
+  @@index([fixtureId])
+  @@index([access])
+  @@index([status])
+  @@index([publishedAt])
+  @@index([source])
+}
+
+model PredictionView {
+  id           String     @id @default(cuid())
+  userId       String
+  predictionId String
+  viewedAt     DateTime   @default(now())
+  prediction   Prediction @relation(fields: [predictionId], references: [id], onDelete: Cascade)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, predictionId])
+  @@index([userId])
+  @@index([predictionId])
+}
+
+model Subscription {
+  id                     String             @id @default(cuid())
+  userId                 String
+  plan                   SubscriptionPlan
+  status                 SubscriptionStatus @default(PENDING)
+  startsAt               DateTime?
+  expiresAt              DateTime?
+  provider               PaymentProvider?
+  providerSubscriptionId String?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+  payments               Payment[]
+  user                   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+model Payment {
+  id             String          @id @default(cuid())
+  userId         String
+  subscriptionId String?
+  provider       PaymentProvider
+  reference      String          @unique
+  amount         Int
+  currency       String          @default("NGN")
+  status         PaymentStatus   @default(PENDING)
+  metadata       Json?
+  paidAt         DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  subscription   Subscription?   @relation(fields: [subscriptionId], references: [id])
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([subscriptionId])
+  @@index([status])
+  @@index([provider])
+}
+
+model NotificationPreference {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  emailEnabled    Boolean  @default(true)
+  whatsappEnabled Boolean  @default(false)
+  phoneNumber     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String              @id @default(cuid())
+  userId    String
+  type      NotificationType
+  channel   NotificationChannel
+  title     String
+  message   String
+  sentAt    DateTime?
+  createdAt DateTime            @default(now())
+  readAt    DateTime?
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([readAt])
+}
+
+model AdminAction {
+  id         String   @id @default(cuid())
+  adminId    String
+  action     String
+  entityType String
+  entityId   String?
+  details    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([adminId])
+  @@index([entityType])
+  @@index([createdAt])
+}
+
+model WhatsAppIntegration {
+  id                     String   @id @default(cuid())
+  enabled                Boolean  @default(false)
+  provider               String   @default("META")
+  accessToken            String?
+  phoneNumberId          String?
+  apiVersion             String   @default("v23.0")
+  predictionTemplateName String   @default("new_prediction")
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}
+
+model SiteSetting {
+  id               String   @id @default(cuid())
+  siteName         String   @default("LogikBetPrediction")
+  logoUrl          String?
+
+  homeLabel        String   @default("Home")
+  predictionsLabel String   @default("Predictions")
+  vipLabel         String   @default("VIP Plans")
+
+  primaryCtaLabel  String   @default("Get VIP")
+  primaryCtaUrl    String   @default("/subscribe")
+
+  themeColor       String   @default("#f59e0b")
+
+  heroHeading      String   @default("Football insights built for")
+  heroHighlight    String   @default("smarter decisions.")
+  heroDescription  String   @default("Access daily football predictions powered by fixture data, probability analysis and structured match insights. Start free or unlock more with VIP.")
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum PredictionAccess {
+  FREE
+  VIP
+}
+
+enum PredictionSource {
+  PLAYER_ELO
+  ADMIN
+}
+
+enum PredictionStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  COMPLETED
+  CANCELLED
+}
+
+enum SubscriptionPlan {
+  WEEKLY
+  MONTHLY
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  PENDING
+}
+
+enum PaymentProvider {
+  PAYSTACK
+  FLUTTERWAVE
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum NotificationChannel {
+  EMAIL
+  WHATSAPP
+  IN_APP
+}
+
+enum NotificationType {
+  NEW_PREDICTION
+  SUBSCRIPTION
+  PAYMENT
+  SYSTEM
+}
