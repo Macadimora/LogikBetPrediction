@@ -12,6 +12,7 @@ type SiteSettings = {
   primaryCtaLabel: string;
   primaryCtaUrl: string;
   themeColor: string;
+  themeHoverColor: string;
   heroHeading: string;
   heroHighlight: string;
   heroDescription: string;
@@ -225,6 +226,9 @@ export default function SiteSettingsPage() {
 
             themeColor:
               settings.themeColor,
+
+            themeHoverColor:
+              settings.themeHoverColor,
 
             heroHeading:
               settings.heroHeading,
@@ -569,6 +573,64 @@ export default function SiteSettingsPage() {
 
               <div>
                 <label
+                  htmlFor="themeHoverColor"
+                  className="mb-2 block text-sm font-medium text-text-secondary"
+                >
+                  Button hover color
+                </label>
+
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <input
+                    id="themeHoverColorPicker"
+                    type="color"
+                    value={settings.themeHoverColor}
+                    onChange={(event) =>
+                      updateField(
+                        "themeHoverColor",
+                        event.target.value
+                      )
+                    }
+                    className="h-12 w-full cursor-pointer rounded-xl border border-theme-border bg-surface p-1 sm:w-20"
+                    aria-label="Choose button hover color"
+                  />
+
+                  <input
+                    id="themeHoverColor"
+                    value={settings.themeHoverColor}
+                    onChange={(event) =>
+                      updateField(
+                        "themeHoverColor",
+                        event.target.value
+                      )
+                    }
+                    placeholder="#d97706"
+                    pattern="^#[0-9A-Fa-f]{6}$"
+                    maxLength={7}
+                    className="w-full rounded-xl border border-theme-border bg-surface px-4 py-3 outline-none transition focus:border-brand sm:max-w-xs"
+                    required
+                  />
+
+                  <div
+                    className="h-12 w-full rounded-xl border border-theme-border sm:w-28"
+                    style={{
+                      backgroundColor:
+                        /^#[0-9A-Fa-f]{6}$/.test(
+                          settings.themeHoverColor
+                        )
+                          ? settings.themeHoverColor
+                          : "#d97706",
+                    }}
+                    aria-label="Button hover color preview"
+                  />
+                </div>
+
+                <p className="mt-2 text-xs text-text-muted">
+                  This color is used when users hover over primary buttons and other brand-colored interactive elements.
+                </p>
+              </div>
+
+              <div>
+                <label
                   htmlFor="heroHeading"
                   className="mb-2 block text-sm font-medium text-text-secondary"
                 >
@@ -670,20 +732,32 @@ export default function SiteSettingsPage() {
                   {settings.heroDescription}
                 </p>
 
-                <button
-                  type="button"
-                  className="mt-5 rounded-xl px-5 py-3 font-semibold text-slate-950"
-                  style={{
-                    backgroundColor:
-                      /^#[0-9A-Fa-f]{6}$/.test(
-                        settings.themeColor
-                      )
-                        ? settings.themeColor
-                        : "#f59e0b",
-                  }}
+                <div
+                  className="mt-5"
+                  style={
+                    {
+                      "--preview-brand":
+                        /^#[0-9A-Fa-f]{6}$/.test(
+                          settings.themeColor
+                        )
+                          ? settings.themeColor
+                          : "#f59e0b",
+                      "--preview-hover":
+                        /^#[0-9A-Fa-f]{6}$/.test(
+                          settings.themeHoverColor
+                        )
+                          ? settings.themeHoverColor
+                          : "#d97706",
+                    } as React.CSSProperties
+                  }
                 >
-                  Theme color preview
-                </button>
+                  <button
+                    type="button"
+                    className="rounded-xl bg-[var(--preview-brand)] px-5 py-3 font-semibold text-slate-950 transition hover:bg-[var(--preview-hover)]"
+                  >
+                    Hover to preview
+                  </button>
+                </div>
               </div>
             </div>
           </section>

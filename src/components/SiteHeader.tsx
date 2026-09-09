@@ -8,49 +8,21 @@ import ThemeToggle from "@/components/ThemeToggle";
 export default async function SiteHeader() {
   const session = await auth();
 
-  const settings =
-    await prisma.siteSetting.findFirst({
-      orderBy: {
-        createdAt: "asc",
-      },
-    });
+  const settings = await prisma.siteSetting.findFirst({
+    orderBy: { createdAt: "asc" },
+  });
 
-  const siteName =
-    settings?.siteName ||
-    "LogikBetPrediction";
+  const siteName = settings?.siteName || "LogikBetPrediction";
+  const logoUrl = settings?.logoUrl || null;
+  const homeLabel = settings?.homeLabel || "Home";
+  const predictionsLabel = settings?.predictionsLabel || "Predictions";
+  const vipLabel = settings?.vipLabel || "VIP Plans";
+  const primaryCtaLabel = settings?.primaryCtaLabel || "Get VIP";
+  const primaryCtaUrl = settings?.primaryCtaUrl || "/subscribe";
 
-  const logoUrl =
-    settings?.logoUrl || null;
-
-  const homeLabel =
-    settings?.homeLabel || "Home";
-
-  const predictionsLabel =
-    settings?.predictionsLabel ||
-    "Predictions";
-
-  const vipLabel =
-    settings?.vipLabel ||
-    "VIP Plans";
-
-  const primaryCtaLabel =
-    settings?.primaryCtaLabel ||
-    "Get VIP";
-
-  const primaryCtaUrl =
-    settings?.primaryCtaUrl ||
-    "/subscribe";
-
-  const isLoggedIn =
-    !!session?.user;
-
-  const isAdmin =
-    session?.user?.role === "ADMIN";
-
-  const accountHref =
-    isAdmin
-      ? "/admin"
-      : "/dashboard";
+  const isLoggedIn = !!session?.user;
+  const isAdmin = session?.user?.role === "ADMIN";
+  const accountHref = isAdmin ? "/admin" : "/dashboard";
 
   return (
     <header className="relative z-50 border-b border-theme-border bg-background/90 backdrop-blur-xl">
@@ -83,25 +55,28 @@ export default async function SiteHeader() {
           <div className="flex items-center gap-3">
             <ThemeToggle />
 
-            {isLoggedIn ? (
+            {isAdmin ? (
+              <a
+                href="/admin"
+                className="rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-brand-foreground transition hover:bg-brand-hover"
+              >
+                Admin Dashboard
+              </a>
+            ) : isLoggedIn ? (
               <>
                 <a
                   href={accountHref}
                   className="rounded-xl border border-theme-border bg-surface px-4 py-2.5 text-sm font-semibold text-text-primary transition hover:bg-surface-soft"
                 >
-                  {isAdmin
-                    ? "Admin Dashboard"
-                    : "My Dashboard"}
+                  My Dashboard
                 </a>
 
-                {!isAdmin && (
-                  <a
-                    href={primaryCtaUrl}
-                    className="rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-brand-foreground transition hover:bg-brand-hover"
-                  >
-                    {primaryCtaLabel}
-                  </a>
-                )}
+                <a
+                  href={primaryCtaUrl}
+                  className="rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-brand-foreground transition hover:bg-brand-hover"
+                >
+                  {primaryCtaLabel}
+                </a>
               </>
             ) : (
               <>
@@ -125,16 +100,10 @@ export default async function SiteHeader() {
 
         <MobileSiteMenu
           homeLabel={homeLabel}
-          predictionsLabel={
-            predictionsLabel
-          }
+          predictionsLabel={predictionsLabel}
           vipLabel={vipLabel}
-          primaryCtaLabel={
-            primaryCtaLabel
-          }
-          primaryCtaUrl={
-            primaryCtaUrl
-          }
+          primaryCtaLabel={primaryCtaLabel}
+          primaryCtaUrl={primaryCtaUrl}
           isLoggedIn={isLoggedIn}
           isAdmin={isAdmin}
           accountHref={accountHref}
@@ -143,4 +112,3 @@ export default async function SiteHeader() {
     </header>
   );
 }
-

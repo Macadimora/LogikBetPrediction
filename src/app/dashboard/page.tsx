@@ -76,104 +76,30 @@ export default async function DashboardPage({
       take: 10,
     });
 
-  const freePredictions =
-    await prisma.prediction.findMany({
-      where: {
-        status: "PUBLISHED",
-        access: "FREE",
-
-        pHome: {
-          not: null,
-        },
-
-        pDraw: {
-          not: null,
-        },
-
-        pAway: {
-          not: null,
-        },
-      },
-
-      include: {
-        fixture: true,
-      },
-
-      orderBy: {
-        fixture: {
-          kickoffTime: "asc",
-        },
-      },
-
-      take: 20,
-    });
-
-  const vipPredictions = isVip
-    ? await prisma.prediction.findMany({
-        where: {
-          status: "PUBLISHED",
-          access: "VIP",
-
-          pHome: {
-            not: null,
-          },
-
-          pDraw: {
-            not: null,
-          },
-
-          pAway: {
-            not: null,
-          },
-        },
-
-        include: {
-          fixture: true,
-        },
-
-        orderBy: {
-          fixture: {
-            kickoffTime: "asc",
-          },
-        },
-
-        take: 20,
-      })
-    : [];
-
   /*
-   * SECURITY:
+   * Every published match is visible to every user.
+   * VIP controls access to deeper prediction details.
    *
-   * Non-VIP users only receive basic fixture
-   * information for VIP predictions.
-   *
-   * VIP probabilities, analysis, scores and
-   * prediction details are never fetched for
-   * locked predictions.
+   * For free members, premium-only fields are not fetched at all.
    */
-  const lockedVipPredictions = !isVip
+  const predictions = isVip
     ? await prisma.prediction.findMany({
         where: {
           status: "PUBLISHED",
-          access: "VIP",
-
-          pHome: {
-            not: null,
-          },
-
-          pDraw: {
-            not: null,
-          },
-
-          pAway: {
-            not: null,
-          },
+          pHome: { not: null },
+          pDraw: { not: null },
+          pAway: { not: null },
         },
-
         select: {
           id: true,
-          access: true,
-
+          title: true,
+          pHome: true,
+          pDraw: true,
+          pAway: true,
+          predictedHomeScore: true,
+          predictedAwayScore: true,
+          confidence: true,
+          analysis: true,
           fixture: {
             select: {
               leagueName: true,
@@ -183,16 +109,42 @@ export default async function DashboardPage({
             },
           },
         },
-
-        orderBy: {
-          fixture: {
-            kickoffTime: "asc",
-          },
-        },
-
-        take: 20,
+        orderBy: { fixture: { kickoffTime: "desc" } },
+        take: 100,
       })
-    : [];
+    : (
+        await prisma.prediction.findMany({
+          where: {
+            status: "PUBLISHED",
+            pHome: { not: null },
+            pDraw: { not: null },
+            pAway: { not: null },
+          },
+          select: {
+            id: true,
+            title: true,
+            pHome: true,
+            pDraw: true,
+            pAway: true,
+            fixture: {
+              select: {
+                leagueName: true,
+                homeTeam: true,
+                awayTeam: true,
+                kickoffTime: true,
+              },
+            },
+          },
+          orderBy: { fixture: { kickoffTime: "desc" } },
+          take: 100,
+        })
+      ).map((prediction) => ({
+        ...prediction,
+        predictedHomeScore: null,
+        predictedAwayScore: null,
+        confidence: null,
+        analysis: null,
+      }));
 
   function percentage(
     value: number | null
@@ -257,11 +209,7 @@ export default async function DashboardPage({
     ).format(date);
   }
 
-  const visiblePredictionCount =
-    freePredictions.length +
-    (isVip
-      ? vipPredictions.length
-      : lockedVipPredictions.length);
+  const visiblePredictionCount = predictions.length;
 
   const displayName =
     session.user.name ||
@@ -443,7 +391,7 @@ export default async function DashboardPage({
                 ? `Expires ${formatDate(
                     activeSubscription.expiresAt
                   )}`
-                : "Upgrade to unlock every VIP prediction."}
+                : "Upgrade to unlock full prediction details."}
             </p>
           </div>
 
@@ -463,8 +411,8 @@ export default async function DashboardPage({
 
             <p className="mt-2 min-h-10 text-xs leading-5 text-text-muted">
               {isVip
-                ? "Free and VIP predictions currently available."
-                : "Includes free tips and available locked VIP matches."}
+                ? "All published matches with full VIP prediction details."
+                : "All published matches with free main picks."}
             </p>
           </div>
 
@@ -542,8 +490,8 @@ export default async function DashboardPage({
 
               <p className="mt-2 text-sm text-text-muted">
                 {isVip
-                  ? "Your free and VIP football predictions."
-                  : "Free predictions plus upcoming VIP opportunities."}
+                  ? "All published matches with full prediction details unlocked."
+                  : "All published matches are visible. Upgrade to unlock the full details."}
               </p>
             </div>
 
@@ -552,7 +500,7 @@ export default async function DashboardPage({
                 href="/subscribe"
                 className="inline-flex items-center justify-center rounded-xl border border-brand/20 bg-brand/[0.07] px-4 py-2.5 text-sm font-bold text-brand transition hover:bg-brand-hover/[0.12]"
               >
-                Unlock VIP Predictions →
+                Unlock VIP Details →
               </Link>
             )}
           </div>
@@ -577,341 +525,168 @@ export default async function DashboardPage({
             </div>
           ) : (
             <div className="grid gap-5 lg:grid-cols-2">
-              {[
-                ...freePredictions,
-                ...vipPredictions,
-              ].map(
-                (prediction) => {
-                  const fixture =
-                    prediction.fixture;
+              {predictions.map((prediction) => {
+                const fixture = prediction.fixture;
 
-                  const selectedPrediction =
-                    getPrediction(
-                      fixture.homeTeam,
-                      fixture.awayTeam,
-                      prediction.pHome,
-                      prediction.pDraw,
-                      prediction.pAway
-                    );
+                const selectedPrediction = getPrediction(
+                  fixture.homeTeam,
+                  fixture.awayTeam,
+                  prediction.pHome,
+                  prediction.pDraw,
+                  prediction.pAway
+                );
 
-                  const confidence =
-                    Math.max(
-                      prediction.pHome ??
-                        0,
-                      prediction.pDraw ??
-                        0,
-                      prediction.pAway ??
-                        0
-                    );
+                const mainPickProbability = Math.max(
+                  prediction.pHome ?? 0,
+                  prediction.pDraw ?? 0,
+                  prediction.pAway ?? 0
+                );
 
-                  return (
-                    <article
-                      key={
-                        prediction.id
-                      }
-                      className="group overflow-hidden rounded-3xl border border-theme-border bg-surface transition hover:border-theme-border hover:bg-surface-soft"
-                    >
-                      {/* Card top */}
-                      <div className="border-b border-theme-border px-5 py-4 sm:px-6">
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <p className="text-sm font-bold text-text-secondary">
-                              {
-                                fixture.leagueName
-                              }
-                            </p>
+                return (
+                  <article
+                    key={prediction.id}
+                    className="group overflow-hidden rounded-3xl border border-theme-border bg-surface transition hover:border-theme-border hover:bg-surface-soft"
+                  >
+                    <div className="border-b border-theme-border px-5 py-4 sm:px-6">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="text-sm font-bold text-text-secondary">
+                            {fixture.leagueName}
+                          </p>
+                          <p className="mt-1 text-xs text-text-muted">
+                            {formatKickoff(fixture.kickoffTime)}
+                          </p>
+                        </div>
 
-                            <p className="mt-1 text-xs text-text-muted">
-                              {formatKickoff(
-                                fixture.kickoffTime
-                              )}
-                            </p>
+                        <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-400">
+                          FREE PICK
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="p-5 sm:p-6">
+                      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
+                        <div>
+                          <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-theme-border bg-surface-soft text-sm font-black text-text-secondary">
+                            H
                           </div>
+                          <p className="font-bold leading-snug">{fixture.homeTeam}</p>
+                          <p className="mt-1 text-xs text-text-muted">Home</p>
+                        </div>
 
-                          <span
-                            className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider ${
-                              prediction.access ===
-                              "VIP"
-                                ? "border border-brand/20 bg-brand/10 text-brand"
-                                : "border border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
-                            }`}
-                          >
-                            {
-                              prediction.access
-                            }
-                          </span>
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full border border-theme-border bg-surface-soft text-[10px] font-black text-text-muted">
+                          VS
+                        </div>
+
+                        <div className="text-right">
+                          <div className="mb-3 ml-auto flex h-11 w-11 items-center justify-center rounded-xl border border-theme-border bg-surface-soft text-sm font-black text-text-secondary">
+                            A
+                          </div>
+                          <p className="font-bold leading-snug">{fixture.awayTeam}</p>
+                          <p className="mt-1 text-xs text-text-muted">Away</p>
                         </div>
                       </div>
 
-                      <div className="p-5 sm:p-6">
-                        {/* Teams */}
-                        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
+                      <div className="mt-6 rounded-2xl border border-emerald-500/15 bg-emerald-500/[0.05] p-4">
+                        <div className="flex items-center justify-between gap-4">
                           <div>
-                            <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-theme-border bg-surface-soft text-sm font-black text-text-secondary">
-                              H
-                            </div>
-
-                            <p className="font-bold leading-snug">
-                              {
-                                fixture.homeTeam
-                              }
+                            <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-emerald-500/70">
+                              AI Main Pick
                             </p>
-
-                            <p className="mt-1 text-xs text-text-muted">
-                              Home
-                            </p>
+                            <p className="mt-1.5 font-black">{selectedPrediction}</p>
                           </div>
-
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full border border-theme-border bg-surface-soft text-[10px] font-black text-text-muted">
-                            VS
-                          </div>
-
                           <div className="text-right">
-                            <div className="mb-3 ml-auto flex h-11 w-11 items-center justify-center rounded-xl border border-theme-border bg-surface-soft text-sm font-black text-text-secondary">
-                              A
-                            </div>
-
-                            <p className="font-bold leading-snug">
-                              {
-                                fixture.awayTeam
-                              }
+                            <p className="text-[10px] uppercase tracking-wider text-text-muted">
+                              Probability
                             </p>
-
-                            <p className="mt-1 text-xs text-text-muted">
-                              Away
+                            <p className="mt-1 text-lg font-black text-emerald-400">
+                              {percentage(mainPickProbability)}
                             </p>
                           </div>
                         </div>
-
-                        {/* Probabilities */}
-                        <div className="mt-6 grid grid-cols-3 gap-2 sm:gap-3">
-                          <div className="rounded-xl border border-theme-border bg-surface-soft p-3 text-center">
-                            <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">
-                              Home
-                            </p>
-
-                            <p className="mt-1.5 text-base font-black">
-                              {percentage(
-                                prediction.pHome
-                              )}
-                            </p>
-                          </div>
-
-                          <div className="rounded-xl border border-theme-border bg-surface-soft p-3 text-center">
-                            <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">
-                              Draw
-                            </p>
-
-                            <p className="mt-1.5 text-base font-black">
-                              {percentage(
-                                prediction.pDraw
-                              )}
-                            </p>
-                          </div>
-
-                          <div className="rounded-xl border border-theme-border bg-surface-soft p-3 text-center">
-                            <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">
-                              Away
-                            </p>
-
-                            <p className="mt-1.5 text-base font-black">
-                              {percentage(
-                                prediction.pAway
-                              )}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Best pick */}
-                        <div className="mt-4 rounded-2xl border border-emerald-500/15 bg-emerald-500/[0.05] p-4">
-                          <div className="flex items-center justify-between gap-4">
-                            <div>
-                              <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-emerald-500/70">
-                                Best Prediction
-                              </p>
-
-                              <p className="mt-1.5 font-black">
-                                {
-                                  selectedPrediction
-                                }
-                              </p>
-                            </div>
-
-                            <div className="text-right">
-                              <p className="text-[10px] uppercase tracking-wider text-text-muted">
-                                Confidence
-                              </p>
-
-                              <p className="mt-1 text-lg font-black text-emerald-400">
-                                {percentage(
-                                  confidence
-                                )}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-
-                        {(prediction.predictedHomeScore !==
-                          null ||
-                          prediction.predictedAwayScore !==
-                            null) && (
-                          <div className="mt-4 flex items-center justify-between rounded-xl border border-theme-border bg-surface px-4 py-3">
-                            <p className="text-xs font-semibold text-text-muted">
-                              Predicted Score
-                            </p>
-
-                            <p className="font-black">
-                              {prediction.predictedHomeScore ??
-                                "—"}{" "}
-                              <span className="mx-1 text-text-muted">
-                                -
-                              </span>{" "}
-                              {prediction.predictedAwayScore ??
-                                "—"}
-                            </p>
-                          </div>
-                        )}
-
-                        {prediction.title && (
-                          <div className="mt-5">
-                            <h3 className="font-bold">
-                              {
-                                prediction.title
-                              }
-                            </h3>
-                          </div>
-                        )}
-
-                        {prediction.analysis && (
-                          <div className="mt-3 border-t border-theme-border pt-4">
-                            <p className="text-sm leading-6 text-text-secondary">
-                              {
-                                prediction.analysis
-                              }
-                            </p>
-                          </div>
-                        )}
                       </div>
-                    </article>
-                  );
-                }
-              )}
 
-              {!isVip &&
-                lockedVipPredictions.map(
-                  (prediction) => {
-                    const fixture =
-                      prediction.fixture;
+                      {isVip ? (
+                        <>
+                          <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
+                            <div className="rounded-xl border border-theme-border bg-surface-soft p-3 text-center">
+                              <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">Home</p>
+                              <p className="mt-1.5 text-base font-black">{percentage(prediction.pHome)}</p>
+                            </div>
+                            <div className="rounded-xl border border-theme-border bg-surface-soft p-3 text-center">
+                              <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">Draw</p>
+                              <p className="mt-1.5 text-base font-black">{percentage(prediction.pDraw)}</p>
+                            </div>
+                            <div className="rounded-xl border border-theme-border bg-surface-soft p-3 text-center">
+                              <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">Away</p>
+                              <p className="mt-1.5 text-base font-black">{percentage(prediction.pAway)}</p>
+                            </div>
+                          </div>
 
-                    return (
-                      <article
-                        key={
-                          prediction.id
-                        }
-                        className="relative overflow-hidden rounded-3xl border border-brand/20 bg-surface"
-                      >
-                        <div className="absolute right-0 top-0 h-32 w-32 rounded-full bg-brand/10 blur-[70px]" />
+                          {prediction.predictedHomeScore !== null &&
+                            prediction.predictedAwayScore !== null && (
+                              <div className="mt-4 flex items-center justify-between rounded-xl border border-theme-border bg-surface px-4 py-3">
+                                <p className="text-xs font-semibold text-text-muted">Predicted Score</p>
+                                <p className="font-black">
+                                  {prediction.predictedHomeScore}
+                                  <span className="mx-1 text-text-muted">-</span>
+                                  {prediction.predictedAwayScore}
+                                </p>
+                              </div>
+                            )}
 
-                        <div className="relative border-b border-theme-border px-5 py-4 sm:px-6">
-                          <div className="flex items-start justify-between gap-4">
+                          {prediction.confidence !== null && (
+                            <div className="mt-4 flex items-center justify-between rounded-xl border border-theme-border bg-surface px-4 py-3">
+                              <p className="text-xs font-semibold text-text-muted">AI Confidence</p>
+                              <p className="font-black">{percentage(prediction.confidence)}</p>
+                            </div>
+                          )}
+
+                          {prediction.title && (
+                            <div className="mt-5">
+                              <h3 className="font-bold">{prediction.title}</h3>
+                            </div>
+                          )}
+
+                          {prediction.analysis && (
+                            <div className="mt-3 border-t border-theme-border pt-4">
+                              <p className="text-sm leading-6 text-text-secondary">
+                                {prediction.analysis}
+                              </p>
+                            </div>
+                          )}
+
+                          <div className="mt-5 text-xs font-bold uppercase tracking-[0.14em] text-brand">
+                            ◆ VIP details unlocked
+                          </div>
+                        </>
+                      ) : (
+                        <div className="mt-4 rounded-2xl border border-brand/15 bg-brand/[0.05] p-5">
+                          <div className="flex items-start gap-3">
+                            <span className="text-xl">🔒</span>
                             <div>
-                              <p className="text-sm font-bold text-text-secondary">
-                                {
-                                  fixture.leagueName
-                                }
-                              </p>
-
-                              <p className="mt-1 text-xs text-text-muted">
-                                {formatKickoff(
-                                  fixture.kickoffTime
-                                )}
+                              <p className="font-bold">VIP prediction details</p>
+                              <p className="mt-1 text-sm leading-6 text-text-muted">
+                                Unlock correct score, full Home/Draw/Away probabilities,
+                                AI confidence and detailed analysis.
                               </p>
                             </div>
-
-                            <span className="rounded-full border border-brand/20 bg-brand/10 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-brand">
-                              VIP
-                            </span>
                           </div>
+
+                          <Link
+                            href="/subscribe"
+                            className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-brand-foreground transition hover:bg-brand-hover"
+                          >
+                            Unlock VIP Details
+                          </Link>
                         </div>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+             </div>
 
-                        <div className="relative p-5 sm:p-6">
-                          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
-                            <div>
-                              <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-theme-border bg-surface-soft text-sm font-black text-text-secondary">
-                                H
-                              </div>
-
-                              <p className="font-bold leading-snug">
-                                {
-                                  fixture.homeTeam
-                                }
-                              </p>
-
-                              <p className="mt-1 text-xs text-text-muted">
-                                Home
-                              </p>
-                            </div>
-
-                            <div className="flex h-10 w-10 items-center justify-center rounded-full border border-theme-border bg-surface-soft text-[10px] font-black text-text-muted">
-                              VS
-                            </div>
-
-                            <div className="text-right">
-                              <div className="mb-3 ml-auto flex h-11 w-11 items-center justify-center rounded-xl border border-theme-border bg-surface-soft text-sm font-black text-text-secondary">
-                                A
-                              </div>
-
-                              <p className="font-bold leading-snug">
-                                {
-                                  fixture.awayTeam
-                                }
-                              </p>
-
-                              <p className="mt-1 text-xs text-text-muted">
-                                Away
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Locked information */}
-                          <div className="mt-6 rounded-2xl border border-brand/15 bg-brand/[0.05] p-5">
-                            <div className="flex flex-col items-center text-center">
-                              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-brand/20 bg-brand/10 text-xl">
-                                🔒
-                              </div>
-
-                              <p className="mt-4 text-xs font-bold uppercase tracking-[0.18em] text-brand">
-                                VIP Prediction
-                              </p>
-
-                              <h3 className="mt-2 text-lg font-black">
-                                Prediction locked
-                              </h3>
-
-                              <p className="mt-2 max-w-sm text-sm leading-6 text-text-muted">
-                                Upgrade to VIP
-                                to unlock the
-                                prediction,
-                                probabilities,
-                                predicted score
-                                and analysis for
-                                this match.
-                              </p>
-
-                              <Link
-                                href="/subscribe"
-                                className="mt-5 inline-flex rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-brand-foreground transition hover:bg-brand-hover"
-                              >
-                                Unlock with VIP
-                              </Link>
-                            </div>
-                          </div>
-                        </div>
-                      </article>
-                    );
-                  }
-                )}
-            </div>
           )}
         </section>
 
@@ -927,15 +702,11 @@ export default async function DashboardPage({
                 </span>
 
                 <h2 className="mt-4 text-2xl font-black tracking-tight sm:text-3xl">
-                  Unlock every prediction.
+                  Unlock the full prediction details.
                 </h2>
 
                 <p className="mt-3 max-w-xl text-sm leading-7 text-text-secondary">
-                  Get access to VIP
-                  predictions,
-                  probabilities,
-                  analysis and the full
-                  prediction experience.
+                  Every match and its main pick stays visible for free. VIP unlocks full probabilities, predicted score, confidence and analysis.
                 </p>
               </div>
 

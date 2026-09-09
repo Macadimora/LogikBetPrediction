@@ -22,18 +22,16 @@ export async function GET() {
       );
     }
 
-    let settings =
-      await prisma.siteSetting.findFirst({
-        orderBy: {
-          createdAt: "asc",
-        },
-      });
+    let settings = await prisma.siteSetting.findFirst({
+      orderBy: {
+        createdAt: "asc",
+      },
+    });
 
     if (!settings) {
-      settings =
-        await prisma.siteSetting.create({
-          data: {},
-        });
+      settings = await prisma.siteSetting.create({
+        data: {},
+      });
     }
 
     return NextResponse.json({
@@ -47,8 +45,7 @@ export async function GET() {
 
     return NextResponse.json(
       {
-        error:
-          "Failed to load site settings.",
+        error: "Failed to load site settings.",
       },
       {
         status: 500,
@@ -57,9 +54,7 @@ export async function GET() {
   }
 }
 
-export async function PATCH(
-  request: Request
-) {
+export async function PATCH(request: Request) {
   try {
     const session = await auth();
 
@@ -95,8 +90,7 @@ export async function PATCH(
         : "";
 
     const predictionsLabel =
-      typeof body.predictionsLabel ===
-      "string"
+      typeof body.predictionsLabel === "string"
         ? body.predictionsLabel.trim()
         : "";
 
@@ -106,14 +100,12 @@ export async function PATCH(
         : "";
 
     const primaryCtaLabel =
-      typeof body.primaryCtaLabel ===
-      "string"
+      typeof body.primaryCtaLabel === "string"
         ? body.primaryCtaLabel.trim()
         : "";
 
     const primaryCtaUrl =
-      typeof body.primaryCtaUrl ===
-      "string"
+      typeof body.primaryCtaUrl === "string"
         ? body.primaryCtaUrl.trim()
         : "";
 
@@ -122,20 +114,23 @@ export async function PATCH(
         ? body.themeColor.trim()
         : "";
 
+    const themeHoverColor =
+      typeof body.themeHoverColor === "string"
+        ? body.themeHoverColor.trim()
+        : "";
+
     const heroHeading =
       typeof body.heroHeading === "string"
         ? body.heroHeading.trim()
         : "";
 
     const heroHighlight =
-      typeof body.heroHighlight ===
-      "string"
+      typeof body.heroHighlight === "string"
         ? body.heroHighlight.trim()
         : "";
 
     const heroDescription =
-      typeof body.heroDescription ===
-      "string"
+      typeof body.heroDescription === "string"
         ? body.heroDescription.trim()
         : "";
 
@@ -147,6 +142,7 @@ export async function PATCH(
       !primaryCtaLabel ||
       !primaryCtaUrl ||
       !themeColor ||
+      !themeHoverColor ||
       !heroHeading ||
       !heroHighlight ||
       !heroDescription
@@ -196,6 +192,18 @@ export async function PATCH(
         {
           error:
             "Theme color must be a valid 6-digit HEX color, for example #f59e0b.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    if (!HEX_COLOR_REGEX.test(themeHoverColor)) {
+      return NextResponse.json(
+        {
+          error:
+            "Theme hover color must be a valid 6-digit HEX color, for example #d97706.",
         },
         {
           status: 400,
@@ -257,9 +265,7 @@ export async function PATCH(
 
     if (
       !primaryCtaUrl.startsWith("/") &&
-      !primaryCtaUrl.startsWith(
-        "https://"
-      )
+      !primaryCtaUrl.startsWith("https://")
     ) {
       return NextResponse.json(
         {
@@ -272,12 +278,11 @@ export async function PATCH(
       );
     }
 
-    let settings =
-      await prisma.siteSetting.findFirst({
-        orderBy: {
-          createdAt: "asc",
-        },
-      });
+    let settings = await prisma.siteSetting.findFirst({
+      orderBy: {
+        createdAt: "asc",
+      },
+    });
 
     const data = {
       siteName,
@@ -288,24 +293,23 @@ export async function PATCH(
       primaryCtaLabel,
       primaryCtaUrl,
       themeColor,
+      themeHoverColor,
       heroHeading,
       heroHighlight,
       heroDescription,
     };
 
     if (!settings) {
-      settings =
-        await prisma.siteSetting.create({
-          data,
-        });
+      settings = await prisma.siteSetting.create({
+        data,
+      });
     } else {
-      settings =
-        await prisma.siteSetting.update({
-          where: {
-            id: settings.id,
-          },
-          data,
-        });
+      settings = await prisma.siteSetting.update({
+        where: {
+          id: settings.id,
+        },
+        data,
+      });
     }
 
     return NextResponse.json({
@@ -320,8 +324,7 @@ export async function PATCH(
 
     return NextResponse.json(
       {
-        error:
-          "Failed to update site settings.",
+        error: "Failed to update site settings.",
       },
       {
         status: 500,

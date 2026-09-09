@@ -103,6 +103,7 @@ model Prediction {
   confidence         Float?
   title              String?
   analysis           String?
+  manualOverride     Boolean          @default(false)
   publishedAt        DateTime?
   scheduledFor       DateTime?
   createdAt          DateTime         @default(now())
@@ -229,22 +230,18 @@ model SiteSetting {
   id               String   @id @default(cuid())
   siteName         String   @default("LogikBetPrediction")
   logoUrl          String?
-
   homeLabel        String   @default("Home")
   predictionsLabel String   @default("Predictions")
   vipLabel         String   @default("VIP Plans")
-
   primaryCtaLabel  String   @default("Get VIP")
   primaryCtaUrl    String   @default("/subscribe")
-
-  themeColor       String   @default("#f59e0b")
-
-  heroHeading      String   @default("Football insights built for")
-  heroHighlight    String   @default("smarter decisions.")
-  heroDescription  String   @default("Access daily football predictions powered by fixture data, probability analysis and structured match insights. Start free or unlock more with VIP.")
-
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+  heroDescription  String   @default("Access daily football predictions powered by fixture data, probability analysis and structured match insights. Start free or unlock more with VIP.")
+  heroHeading      String   @default("Football insights built for")
+  heroHighlight    String   @default("smarter decisions.")
+  themeColor       String   @default("#f59e0b")
+  themeHoverColor  String   @default("#d97706")
 }
 
 enum UserRole {

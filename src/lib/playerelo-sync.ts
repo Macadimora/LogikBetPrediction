@@ -35,6 +35,58 @@ type PlayerEloResponse =
       predictions?: PlayerEloPrediction[];
     };
 
+    type PredictedScore = {
+  home: number;
+  away: number;
+};
+
+/**
+ * Generates a conservative exact-score prediction when
+ * PlayerElo does not provide one.
+ *
+ * This uses the Home/Draw/Away probabilities to choose
+ * a plausible football score while keeping the result
+ * consistent with the model's strongest outcome.
+ */
+function derivePredictedScore(
+  pHome: number,
+  pDraw: number,
+  pAway: number
+): PredictedScore {
+  const probabilities = [pHome, pDraw, pAway];
+  const strongest = Math.max(...probabilities);
+
+  if (strongest === pDraw) {
+    if (pDraw >= 0.4) {
+      return { home: 1, away: 1 };
+    }
+
+    return { home: 0, away: 0 };
+  }
+
+  if (strongest === pHome) {
+    if (pHome >= 0.65) {
+      return { home: 2, away: 0 };
+    }
+
+    if (pHome >= 0.5) {
+      return { home: 2, away: 1 };
+    }
+
+    return { home: 1, away: 0 };
+  }
+
+  if (pAway >= 0.65) {
+    return { home: 0, away: 2 };
+  }
+
+  if (pAway >= 0.5) {
+    return { home: 1, away: 2 };
+  }
+
+  return { home: 0, away: 1 };
+}
+
 export async function syncPlayerEloPredictions() {
   const apiKey = process.env.PLAYER_ELO_API_KEY;
 
@@ -45,7 +97,7 @@ export async function syncPlayerEloPredictions() {
   }
 
   const response = await fetch(
-    "https://data-api.playerelo.football/v1/predictions?limit=50",
+    "https://data-api.playerelo.football/v1/predictions?limit=200",
     {
       method: "GET",
 
@@ -59,7 +111,8 @@ export async function syncPlayerEloPredictions() {
   );
 
   if (!response.ok) {
-    const responseText = await response.text();
+    const responseText =
+      await response.text();
 
     console.error(
       "PlayerElo API error:",
@@ -91,24 +144,73 @@ export async function syncPlayerEloPredictions() {
 
   const now = new Date();
 
+  /*
+   * -----------------------------------------
+   * DATABASE CLEANUP
+   * -----------------------------------------
+   *
+   * Keep fixtures from the last 3 days plus
+   * all future fixtures.
+   *
+   * Fixture -> Prediction uses Cascade.
+   * Prediction -> PredictionView also uses
+   * Cascade.
+   *
+   * Therefore deleting the fixture also
+   * removes its associated prediction data.
+   */
+
+  const threeDaysAgo = new Date(
+    now.getTime() -
+      3 * 24 * 60 * 60 * 1000
+  );
+
+  const deletedOldFixtures =
+    await prisma.fixture.deleteMany({
+      where: {
+        kickoffTime: {
+          lt: threeDaysAgo,
+        },
+      },
+    });
+
+  console.log(
+    `Deleted ${deletedOldFixtures.count} fixtures older than 3 days.`
+  );
+
+  /*
+   * -----------------------------------------
+   * SYNC COUNTERS
+   * -----------------------------------------
+   */
+
   let fixturesCreated = 0;
   let fixturesUpdated = 0;
 
   let predictionsCreated = 0;
   let predictionsUpdated = 0;
+  let predictionsAutoPublished = 0;
   let predictionsSkipped = 0;
 
   let pastPredictionsReceived = 0;
   let futurePredictionsReceived = 0;
   let invalidKickoffDates = 0;
+  let historicalPredictionsSkipped = 0;
 
   const validKickoffTimes: Date[] = [];
 
+  /*
+   * -----------------------------------------
+   * PROCESS PLAYERELO PREDICTIONS
+   * -----------------------------------------
+   */
+
   for (const item of predictions) {
     /*
-     * A prediction is only useful when
-     * all three probabilities exist.
+     * All three probabilities must exist
+     * before a prediction is useful.
      */
+
     const hasProbabilities =
       item.p_home != null &&
       item.p_draw != null &&
@@ -118,6 +220,11 @@ export async function syncPlayerEloPredictions() {
       predictionsSkipped++;
       continue;
     }
+
+    /*
+     * Fixture ID and kickoff time are
+     * required.
+     */
 
     if (
       !item.fixture_id ||
@@ -141,15 +248,39 @@ export async function syncPlayerEloPredictions() {
       continue;
     }
 
-    validKickoffTimes.push(kickoffTime);
+    validKickoffTimes.push(
+      kickoffTime
+    );
+
+    /*
+     * -----------------------------------------
+     * HISTORICAL PROTECTION
+     * -----------------------------------------
+     *
+     * PlayerElo occasionally returns stale
+     * matches.
+     *
+     * Never create or update a prediction
+     * whose match has already kicked off.
+     */
 
     if (
-      kickoffTime.getTime() < now.getTime()
+      kickoffTime.getTime() <
+      now.getTime()
     ) {
       pastPredictionsReceived++;
-    } else {
-      futurePredictionsReceived++;
+      historicalPredictionsSkipped++;
+      predictionsSkipped++;
+      continue;
     }
+
+    futurePredictionsReceived++;
+
+    /*
+     * -----------------------------------------
+     * TEAM INFORMATION
+     * -----------------------------------------
+     */
 
     const homeTeam =
       item.home_team_name ||
@@ -170,7 +301,8 @@ export async function syncPlayerEloPredictions() {
     const existingFixture =
       await prisma.fixture.findUnique({
         where: {
-          externalId: item.fixture_id,
+          externalId:
+            item.fixture_id,
         },
 
         select: {
@@ -181,14 +313,16 @@ export async function syncPlayerEloPredictions() {
     const fixture =
       await prisma.fixture.upsert({
         where: {
-          externalId: item.fixture_id,
+          externalId:
+            item.fixture_id,
         },
 
         update: {
           kickoffTime,
 
           leagueId:
-            item.league_id ?? null,
+            item.league_id ??
+            null,
 
           leagueName:
             item.league_name ||
@@ -249,109 +383,212 @@ export async function syncPlayerEloPredictions() {
 
     /*
      * -----------------------------------------
-     * PREDICTION
+     * PREDICTED CORRECT SCORE
+     * -----------------------------------------
+     *
+     * Prefer a correct-score prediction supplied
+     * directly by PlayerElo. If PlayerElo does
+     * not provide both scores, generate a
+     * fallback from the Home/Draw/Away
+     * probabilities.
+     */
+    const fallbackScore = derivePredictedScore(
+      item.p_home!,
+      item.p_draw!,
+      item.p_away!
+    );
+
+    const hasPlayerEloScore =
+      item.predicted_home_score != null &&
+      item.predicted_away_score != null;
+
+    const predictedHomeScore =
+      hasPlayerEloScore
+        ? item.predicted_home_score!
+        : fallbackScore.home;
+
+    const predictedAwayScore =
+      hasPlayerEloScore
+        ? item.predicted_away_score!
+        : fallbackScore.away;
+
+    /*
+     * -----------------------------------------
+     * EXISTING PREDICTION
      * -----------------------------------------
      */
 
     const existingPrediction =
       await prisma.prediction.findFirst({
         where: {
-          fixtureId: fixture.id,
-          source: "PLAYER_ELO",
+          fixtureId:
+            fixture.id,
+
+          source:
+            "PLAYER_ELO",
         },
 
         select: {
           id: true,
           status: true,
+          manualOverride: true,
         },
       });
 
     if (existingPrediction) {
       /*
-       * Update statistical values only.
+       * -----------------------------------------
+       * MANUAL OVERRIDE PROTECTION
+       * -----------------------------------------
        *
-       * IMPORTANT:
-       * status, access, publishedAt and
-       * scheduledFor remain untouched.
+       * AI-managed predictions continue to receive
+       * fresh PlayerElo probabilities, confidence
+       * and predicted-score data on every sync.
+       *
+       * Once an admin manually edits prediction
+       * content, manualOverride becomes true. In
+       * that case the fixture can still be refreshed
+       * above, but the admin's prediction values are
+       * preserved and PlayerElo cannot overwrite them.
+       *
+       * A manually overridden DRAFT is also preserved
+       * as DRAFT so an intentional admin status change
+       * is not automatically undone.
        */
+
+      if (existingPrediction.manualOverride) {
+        predictionsUpdated++;
+        continue;
+      }
+
+      const shouldAutoPublish =
+        existingPrediction.status ===
+        "DRAFT";
+
       await prisma.prediction.update({
         where: {
           id: existingPrediction.id,
         },
 
         data: {
-          pHome: item.p_home,
-          pDraw: item.p_draw,
-          pAway: item.p_away,
+          pHome:
+            item.p_home,
 
-          predictedHomeScore:
-            item.predicted_home_score ??
-            null,
+          pDraw:
+            item.p_draw,
 
-          predictedAwayScore:
-            item.predicted_away_score ??
-            null,
+          pAway:
+            item.p_away,
+
+          predictedHomeScore,
+
+          predictedAwayScore,
 
           confidence:
             item.confidence ??
             null,
+
+          ...(shouldAutoPublish
+            ? {
+                status:
+                  "PUBLISHED" as const,
+
+                publishedAt:
+                  now,
+
+                scheduledFor:
+                  null,
+              }
+            : {}),
         },
       });
 
       predictionsUpdated++;
-    } else {
-      /*
-       * New PlayerElo predictions enter
-       * the admin workflow as DRAFT.
-       *
-       * The admin decides whether they
-       * become FREE or VIP and when
-       * they should be published.
-       */
-      await prisma.prediction.create({
-        data: {
-          fixtureId: fixture.id,
 
-          access: "FREE",
+      if (shouldAutoPublish) {
+        predictionsAutoPublished++;
+      }
 
-          source: "PLAYER_ELO",
-
-          status: "DRAFT",
-
-          pHome: item.p_home,
-          pDraw: item.p_draw,
-          pAway: item.p_away,
-
-          predictedHomeScore:
-            item.predicted_home_score ??
-            null,
-
-          predictedAwayScore:
-            item.predicted_away_score ??
-            null,
-
-          confidence:
-            item.confidence ??
-            null,
-
-          publishedAt: null,
-          scheduledFor: null,
-        },
-      });
-
-      predictionsCreated++;
+      continue;
     }
+
+    /*
+     * -----------------------------------------
+     * NEW PREDICTION
+     * -----------------------------------------
+     *
+     * New valid future PlayerElo predictions
+     * are published immediately.
+     *
+     * access remains FREE for backwards
+     * compatibility with the current schema.
+     *
+     * VIP now controls how much information
+     * the user sees rather than whether the
+     * match itself is visible.
+     */
+
+    await prisma.prediction.create({
+      data: {
+        fixtureId:
+          fixture.id,
+
+        access:
+          "FREE",
+
+        source:
+          "PLAYER_ELO",
+
+        status:
+          "PUBLISHED",
+
+        pHome:
+          item.p_home,
+
+        pDraw:
+          item.p_draw,
+
+        pAway:
+          item.p_away,
+
+        predictedHomeScore,
+
+        predictedAwayScore,
+
+        confidence:
+          item.confidence ??
+          null,
+
+        publishedAt:
+          now,
+
+        scheduledFor:
+          null,
+      },
+    });
+
+    predictionsCreated++;
+    predictionsAutoPublished++;
   }
+
+  /*
+   * -----------------------------------------
+   * DIAGNOSTICS
+   * -----------------------------------------
+   */
 
   const sortedKickoffs =
     validKickoffTimes.sort(
       (a, b) =>
-        a.getTime() - b.getTime()
+        a.getTime() -
+        b.getTime()
     );
 
   const earliestKickoff =
     sortedKickoffs.length > 0
-      ? sortedKickoffs[0].toISOString()
+      ? sortedKickoffs[
+          0
+        ].toISOString()
       : null;
 
   const latestKickoff =
@@ -361,23 +598,43 @@ export async function syncPlayerEloPredictions() {
         ].toISOString()
       : null;
 
-  return {
-    received: predictions.length,
+  const result = {
+    received:
+      predictions.length,
+
+    deletedOldFixtures:
+      deletedOldFixtures.count,
 
     fixturesCreated,
     fixturesUpdated,
 
     predictionsCreated,
     predictionsUpdated,
+    predictionsAutoPublished,
     predictionsSkipped,
 
     diagnostics: {
-      syncTime: now.toISOString(),
+      syncTime:
+        now.toISOString(),
+
+      cleanupCutoff:
+        threeDaysAgo.toISOString(),
+
       earliestKickoff,
       latestKickoff,
+
       pastPredictionsReceived,
       futurePredictionsReceived,
+
+      historicalPredictionsSkipped,
       invalidKickoffDates,
     },
   };
+
+  console.log(
+    "PlayerElo sync result:",
+    result
+  );
+
+  return result;
 }

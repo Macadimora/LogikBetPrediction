@@ -2,7 +2,6 @@ import { Resend } from "resend";
 
 import { prisma } from "@/lib/prisma";
 import { sendWhatsAppTemplate } from "@/lib/whatsapp";
-import { expireOldSubscriptions } from "@/lib/subscriptions";
 
 function escapeHtml(value: string) {
   return value
@@ -42,45 +41,18 @@ export async function sendPredictionPublishedNotifications(
   }
 
   /*
-   * Keep subscription states current before
-   * deciding who is eligible for VIP alerts.
-   */
-  await expireOldSubscriptions();
-
-  const now = new Date();
-
-  /*
-   * FREE predictions:
-   * All registered users are eligible.
+   * Every registered user can be notified
+   * about a newly published match.
    *
-   * VIP predictions:
-   * Only users with a currently valid
-   * ACTIVE subscription are eligible.
+   * VIP does not determine whether the
+   * match itself is visible.
+   *
+   * VIP only determines how much prediction
+   * information is revealed when the user
+   * views the prediction.
    */
   const users =
     await prisma.user.findMany({
-      where:
-        prediction.access === "VIP"
-          ? {
-              subscriptions: {
-                some: {
-                  status: "ACTIVE",
-
-                  OR: [
-                    {
-                      expiresAt: null,
-                    },
-                    {
-                      expiresAt: {
-                        gt: now,
-                      },
-                    },
-                  ],
-                },
-              },
-            }
-          : undefined,
-
       select: {
         id: true,
         name: true,
@@ -114,12 +86,10 @@ export async function sendPredictionPublishedNotifications(
     `${fixture.homeTeam} vs ${fixture.awayTeam}`;
 
   const predictionLabel =
-    prediction.access === "VIP"
-      ? "VIP Prediction"
-      : "Free Prediction";
+    "New Prediction";
 
   const subject =
-    `${predictionLabel}: ${matchName}`;
+    `New Prediction: ${matchName}`;
 
   let inAppCreated = 0;
   let emailSent = 0;
@@ -172,7 +142,9 @@ export async function sendPredictionPublishedNotifications(
             subject,
 
           message:
-            `A new ${predictionLabel.toLowerCase()} was published for ${matchName}. ` +
+            `A new prediction was published for ${matchName}. ` +
+            `Open your dashboard to view the main prediction. ` +
+            `VIP members can access the full prediction details. ` +
             `Prediction ID: ${prediction.id}.`,
 
           sentAt:
@@ -245,9 +217,7 @@ export async function sendPredictionPublishedNotifications(
             "
           >
             <h2>
-              New ${escapeHtml(
-                predictionLabel
-              )} Available
+              New Football Prediction Available
             </h2>
 
             <p>
@@ -289,6 +259,16 @@ export async function sendPredictionPublishedNotifications(
                   fixture.kickoffTime.toUTCString()
                 )}
               </strong>
+            </p>
+
+            <p>
+              View the main prediction in
+              your dashboard. VIP members
+              can also access full
+              probabilities, predicted
+              score, confidence and
+              detailed analysis when
+              available.
             </p>
 
             <p>
@@ -379,25 +359,6 @@ export async function sendPredictionPublishedNotifications(
     }
 
     try {
-      const result =
-        await sendWhatsAppTemplate({
-          phoneNumber,
-
-          bodyParameters: [
-            predictionLabel,
-            matchName,
-            fixture.kickoffTime.toUTCString(),
-          ],
-        });
-
-      if (!result.success) {
-        if (!result.skipped) {
-          whatsappFailed++;
-        }
-
-        continue;
-      }
-
       const existingWhatsAppNotification =
         await prisma.notification.findFirst({
           where: {
@@ -417,33 +378,58 @@ export async function sendPredictionPublishedNotifications(
           },
         });
 
-      if (!existingWhatsAppNotification) {
-        await prisma.notification.create({
-          data: {
-            userId:
-              user.id,
-
-            type:
-              "NEW_PREDICTION",
-
-            channel:
-              "WHATSAPP",
-
-            title:
-              subject,
-
-            message:
-              `WhatsApp notification sent for ${matchName}. ` +
-              `Prediction ID: ${prediction.id}.`,
-
-            sentAt:
-              new Date(),
-
-            readAt:
-              null,
-          },
-        });
+      /*
+       * Avoid sending the same WhatsApp
+       * prediction notification twice.
+       */
+      if (existingWhatsAppNotification) {
+        continue;
       }
+
+      const result =
+        await sendWhatsAppTemplate({
+          phoneNumber,
+
+          bodyParameters: [
+            predictionLabel,
+            matchName,
+            fixture.kickoffTime.toUTCString(),
+          ],
+        });
+
+      if (!result.success) {
+        if (!result.skipped) {
+          whatsappFailed++;
+        }
+
+        continue;
+      }
+
+      await prisma.notification.create({
+        data: {
+          userId:
+            user.id,
+
+          type:
+            "NEW_PREDICTION",
+
+          channel:
+            "WHATSAPP",
+
+          title:
+            subject,
+
+          message:
+            `WhatsApp notification sent for ${matchName}. ` +
+            `Prediction ID: ${prediction.id}.`,
+
+          sentAt:
+            new Date(),
+
+          readAt:
+            null,
+        },
+      });
 
       whatsappSent++;
     } catch (error) {

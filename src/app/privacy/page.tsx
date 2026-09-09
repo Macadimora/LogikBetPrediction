@@ -593,33 +593,38 @@ export default async function PrivacyPage() {
               </div>
             </section>
 
-            <section
-              id="contact"
-              className="scroll-mt-28 rounded-2xl border border-theme-border bg-surface p-6 sm:p-8"
-            >
-              <h2 className="text-2xl font-black text-text-primary">
-                17. Contact us
-              </h2>
+            <section id="contact"
+                  className="scroll-mt-28 rounded-2xl border border-theme-border bg-surface p-6 sm:p-8"
+                >
+                  <h2 className="text-2xl font-black text-text-primary">
+                    17. Contact us
+                  </h2>
 
-              <div className="mt-4 space-y-4 text-sm leading-7 text-text-secondary sm:text-base">
-                <p>
-                  If you have a privacy question, want to exercise a privacy
-                  right, or have concerns about how your personal information
-                  is handled, please contact us using the support contact
-                  details made available through the {siteName} platform.
-                </p>
+                  <div className="mt-4 space-y-4 text-sm leading-7 text-text-secondary sm:text-base">
+                    <p>
+                      If you have a privacy question, want to exercise a privacy
+                      right, or have concerns about how your personal information
+                      is handled, please contact us at{" "}
+                      <a
+                        href="mailto:support@logikbetprediction.com"
+                        className="font-semibold text-brand transition hover:text-brand-hover"
+                      >
+                        support@logikbetprediction.com
+                      </a>
+                      .
+                    </p>
 
-                <p>
-                  For other platform rules, please review our{" "}
-                  <Link
-                    href="/terms"
-                    className="font-semibold text-brand transition hover:text-brand-hover"
-                  >
-                    Terms &amp; Conditions
-                  </Link>
-                  .
-                </p>
-              </div>
+                    <p>
+                      For other platform rules, please review our{" "}
+                      <Link
+                        href="/terms"
+                        className="font-semibold text-brand transition hover:text-brand-hover"
+                      >
+                        Terms &amp; Conditions
+                      </Link>
+                      .
+                    </p>
+                  </div>
             </section>
 
             <div className="rounded-2xl border border-brand/20 bg-brand/[0.04] p-5 text-sm leading-6 text-text-secondary">

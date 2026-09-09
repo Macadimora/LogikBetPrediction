@@ -24,10 +24,14 @@ export const metadata: Metadata = {
 };
 
 const DEFAULT_BRAND_COLOR = "#f59e0b";
+const DEFAULT_BRAND_HOVER_COLOR = "#d97706";
+
 const DARK_FOREGROUND = "#020617";
 const LIGHT_FOREGROUND = "#ffffff";
 
-function isValidHexColor(value: string | null | undefined) {
+function isValidHexColor(
+  value: string | null | undefined
+) {
   if (!value) {
     return false;
   }
@@ -39,22 +43,36 @@ function hexToRgb(hex: string) {
   const normalized = hex.replace("#", "");
 
   return {
-    r: Number.parseInt(normalized.slice(0, 2), 16),
-    g: Number.parseInt(normalized.slice(2, 4), 16),
-    b: Number.parseInt(normalized.slice(4, 6), 16),
+    r: Number.parseInt(
+      normalized.slice(0, 2),
+      16
+    ),
+    g: Number.parseInt(
+      normalized.slice(2, 4),
+      16
+    ),
+    b: Number.parseInt(
+      normalized.slice(4, 6),
+      16
+    ),
   };
 }
 
 function getRelativeLuminance(hex: string) {
   const { r, g, b } = hexToRgb(hex);
 
-  const channels = [r, g, b].map((value) => {
-    const srgb = value / 255;
+  const channels = [r, g, b].map(
+    (value) => {
+      const srgb = value / 255;
 
-    return srgb <= 0.03928
-      ? srgb / 12.92
-      : Math.pow((srgb + 0.055) / 1.055, 2.4);
-  });
+      return srgb <= 0.03928
+        ? srgb / 12.92
+        : Math.pow(
+            (srgb + 0.055) / 1.055,
+            2.4
+          );
+    }
+  );
 
   return (
     0.2126 * channels[0] +
@@ -77,18 +95,27 @@ function getContrastRatio(
     secondLuminance
   );
 
-  return (lighter + 0.05) / (darker + 0.05);
+  return (
+    (lighter + 0.05) /
+    (darker + 0.05)
+  );
 }
 
-function getBrandForeground(brandColor: string) {
+function getBrandForeground(
+  brandColor: string
+) {
   const brandLuminance =
     getRelativeLuminance(brandColor);
 
   const darkLuminance =
-    getRelativeLuminance(DARK_FOREGROUND);
+    getRelativeLuminance(
+      DARK_FOREGROUND
+    );
 
   const lightLuminance =
-    getRelativeLuminance(LIGHT_FOREGROUND);
+    getRelativeLuminance(
+      LIGHT_FOREGROUND
+    );
 
   const darkContrast =
     getContrastRatio(
@@ -107,7 +134,7 @@ function getBrandForeground(brandColor: string) {
     : LIGHT_FOREGROUND;
 }
 
-async function getBrandColor() {
+async function getBrandColors() {
   try {
     const settings =
       await prisma.siteSetting.findFirst({
@@ -117,39 +144,62 @@ async function getBrandColor() {
 
         select: {
           themeColor: true,
+          themeHoverColor: true,
         },
       });
 
-    if (
+    const brandColor =
       settings &&
-      isValidHexColor(settings.themeColor)
-    ) {
-      return settings.themeColor;
-    }
+      isValidHexColor(
+        settings.themeColor
+      )
+        ? settings.themeColor
+        : DEFAULT_BRAND_COLOR;
 
-    return DEFAULT_BRAND_COLOR;
+    const brandHoverColor =
+      settings &&
+      isValidHexColor(
+        settings.themeHoverColor
+      )
+        ? settings.themeHoverColor
+        : DEFAULT_BRAND_HOVER_COLOR;
+
+    return {
+      brandColor,
+      brandHoverColor,
+    };
   } catch (error) {
     console.error(
-      "Failed to load global brand color:",
+      "Failed to load global brand colors:",
       error
     );
 
-    return DEFAULT_BRAND_COLOR;
+    return {
+      brandColor:
+        DEFAULT_BRAND_COLOR,
+      brandHoverColor:
+        DEFAULT_BRAND_HOVER_COLOR,
+    };
   }
 }
 
 export default async function RootLayout({
   children,
 }: LayoutProps<"/">) {
-  const brandColor =
-    await getBrandColor();
+  const {
+    brandColor,
+    brandHoverColor,
+  } = await getBrandColors();
 
   const brandForeground =
     getBrandForeground(brandColor);
 
   const themeStyle = {
     "--brand": brandColor,
-    "--brand-foreground": brandForeground,
+    "--brand-hover":
+      brandHoverColor,
+    "--brand-foreground":
+      brandForeground,
   } as CSSProperties;
 
   return (

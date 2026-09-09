@@ -63,43 +63,50 @@ export async function PATCH(
     const pHome =
       body.pHome === null || body.pHome === ""
         ? null
-        : Number(body.pHome);
+        : body.pHome === undefined
+          ? existingPrediction.pHome
+          : Number(body.pHome);
 
     const pDraw =
       body.pDraw === null || body.pDraw === ""
         ? null
-        : Number(body.pDraw);
+        : body.pDraw === undefined
+          ? existingPrediction.pDraw
+          : Number(body.pDraw);
 
     const pAway =
       body.pAway === null || body.pAway === ""
         ? null
-        : Number(body.pAway);
+        : body.pAway === undefined
+          ? existingPrediction.pAway
+          : Number(body.pAway);
 
     const confidence =
-      body.confidence === null ||
-      body.confidence === ""
+      body.confidence === null || body.confidence === ""
         ? null
-        : Number(body.confidence);
+        : body.confidence === undefined
+          ? existingPrediction.confidence
+          : Number(body.confidence);
 
     const predictedHomeScore =
       body.predictedHomeScore === null ||
       body.predictedHomeScore === ""
         ? null
-        : Number(body.predictedHomeScore);
+        : body.predictedHomeScore === undefined
+          ? existingPrediction.predictedHomeScore
+          : Number(body.predictedHomeScore);
 
     const predictedAwayScore =
       body.predictedAwayScore === null ||
       body.predictedAwayScore === ""
         ? null
-        : Number(body.predictedAwayScore);
+        : body.predictedAwayScore === undefined
+          ? existingPrediction.predictedAwayScore
+          : Number(body.predictedAwayScore);
 
     if (
       pHome !== null &&
-      (
-        Number.isNaN(pHome) ||
-        pHome < 0 ||
-        pHome > 1
-      )
+      (Number.isNaN(pHome) || pHome < 0 || pHome > 1)
     ) {
       return NextResponse.json(
         {
@@ -114,11 +121,7 @@ export async function PATCH(
 
     if (
       pDraw !== null &&
-      (
-        Number.isNaN(pDraw) ||
-        pDraw < 0 ||
-        pDraw > 1
-      )
+      (Number.isNaN(pDraw) || pDraw < 0 || pDraw > 1)
     ) {
       return NextResponse.json(
         {
@@ -133,11 +136,7 @@ export async function PATCH(
 
     if (
       pAway !== null &&
-      (
-        Number.isNaN(pAway) ||
-        pAway < 0 ||
-        pAway > 1
-      )
+      (Number.isNaN(pAway) || pAway < 0 || pAway > 1)
     ) {
       return NextResponse.json(
         {
@@ -156,8 +155,7 @@ export async function PATCH(
       pAway !== null;
 
     if (probabilitiesProvided) {
-      const total =
-        pHome + pDraw + pAway;
+      const total = pHome + pDraw + pAway;
 
       if (Math.abs(total - 1) > 0.02) {
         return NextResponse.json(
@@ -174,11 +172,9 @@ export async function PATCH(
 
     if (
       confidence !== null &&
-      (
-        Number.isNaN(confidence) ||
+      (Number.isNaN(confidence) ||
         confidence < 0 ||
-        confidence > 1
-      )
+        confidence > 1)
     ) {
       return NextResponse.json(
         {
@@ -193,12 +189,8 @@ export async function PATCH(
 
     if (
       predictedHomeScore !== null &&
-      (
-        !Number.isInteger(
-          predictedHomeScore
-        ) ||
-        predictedHomeScore < 0
-      )
+      (!Number.isInteger(predictedHomeScore) ||
+        predictedHomeScore < 0)
     ) {
       return NextResponse.json(
         {
@@ -213,12 +205,8 @@ export async function PATCH(
 
     if (
       predictedAwayScore !== null &&
-      (
-        !Number.isInteger(
-          predictedAwayScore
-        ) ||
-        predictedAwayScore < 0
-      )
+      (!Number.isInteger(predictedAwayScore) ||
+        predictedAwayScore < 0)
     ) {
       return NextResponse.json(
         {
@@ -231,11 +219,6 @@ export async function PATCH(
       );
     }
 
-    const allowedAccess = [
-      "FREE",
-      "VIP",
-    ];
-
     const allowedStatuses = [
       "DRAFT",
       "SCHEDULED",
@@ -243,21 +226,6 @@ export async function PATCH(
       "COMPLETED",
       "CANCELLED",
     ];
-
-    if (
-      body.access &&
-      !allowedAccess.includes(body.access)
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "Invalid prediction access type",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
 
     if (
       body.status &&
@@ -275,15 +243,12 @@ export async function PATCH(
     }
 
     const nextStatus =
-      body.status ??
-      existingPrediction.status;
+      body.status ?? existingPrediction.status;
 
     /*
      * Work out the intended scheduled date.
      */
-    let scheduledFor:
-      | Date
-      | null =
+    let scheduledFor: Date | null =
       existingPrediction.scheduledFor;
 
     if (nextStatus === "SCHEDULED") {
@@ -303,10 +268,9 @@ export async function PATCH(
         );
       }
 
-      const parsedScheduledFor =
-        new Date(
-          body.scheduledFor
-        );
+      const parsedScheduledFor = new Date(
+        body.scheduledFor
+      );
 
       if (
         Number.isNaN(
@@ -339,8 +303,7 @@ export async function PATCH(
         );
       }
 
-      scheduledFor =
-        parsedScheduledFor;
+      scheduledFor = parsedScheduledFor;
     } else {
       /*
        * Once a prediction is no longer scheduled,
@@ -371,41 +334,58 @@ export async function PATCH(
       );
     }
 
+    /*
+     * A prediction is considered manually overridden when
+     * an admin changes any AI-generated prediction content.
+     *
+     * Status/scheduling changes alone do not disable future
+     * PlayerElo/AI refreshes.
+     */
+    const manualContentFields = [
+      "pHome",
+      "pDraw",
+      "pAway",
+      "predictedHomeScore",
+      "predictedAwayScore",
+      "confidence",
+      "title",
+      "analysis",
+    ] as const;
+
+    const hasManualContentEdit =
+      manualContentFields.some((field) =>
+        Object.prototype.hasOwnProperty.call(
+          body,
+          field
+        )
+      );
+
     const updatedPrediction =
       await prisma.prediction.update({
         where: {
           id,
         },
-
         data: {
           pHome,
           pDraw,
           pAway,
-
           predictedHomeScore,
           predictedAwayScore,
-
           confidence,
-
           title:
             typeof body.title === "string"
               ? body.title.trim() || null
               : existingPrediction.title,
-
           analysis:
             typeof body.analysis === "string"
               ? body.analysis.trim() || null
               : existingPrediction.analysis,
-
-          access:
-            body.access ??
-            existingPrediction.access,
-
-          status:
-            nextStatus,
-
+          status: nextStatus,
           scheduledFor,
-
+          manualOverride:
+            hasManualContentEdit
+              ? true
+              : existingPrediction.manualOverride,
           publishedAt:
             nextStatus === "PUBLISHED"
               ? existingPrediction.publishedAt ??
@@ -414,17 +394,14 @@ export async function PATCH(
                 ? null
                 : existingPrediction.publishedAt,
         },
-
         include: {
           fixture: true,
         },
       });
 
     const wasJustPublished =
-      existingPrediction.status !==
-        "PUBLISHED" &&
-      updatedPrediction.status ===
-        "PUBLISHED";
+      existingPrediction.status !== "PUBLISHED" &&
+      updatedPrediction.status === "PUBLISHED";
 
     let notificationResult = null;
 

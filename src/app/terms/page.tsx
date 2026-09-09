@@ -202,9 +202,19 @@ export default async function TermsPage() {
             </section>
 
             <section className="rounded-2xl border border-theme-border bg-surface p-6 sm:p-8">
-              <h2 className="text-2xl font-black text-text-primary">17. Contact</h2>
+              <h2 className="text-2xl font-black text-text-primary">
+                17. Contact
+              </h2>
+
               <p className="mt-4 text-sm leading-7 text-text-secondary sm:text-base">
-                If you have questions about these Terms &amp; Conditions, payments, subscriptions, or your account, please contact us using the support contact details made available through the {siteName} platform.
+                If you have questions about these Terms &amp; Conditions,
+                payments, subscriptions, or your account, please contact us at{" "}
+                <a
+                  href="mailto:support@logikbetprediction.com"
+                  className="font-semibold text-brand transition hover:text-brand-hover">
+                  support@logikbetprediction.com
+                </a>
+                .
               </p>
             </section>
 

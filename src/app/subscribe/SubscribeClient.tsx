@@ -81,10 +81,10 @@ export default function SubscribeClient() {
         </h1>
 
         <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-text-secondary sm:text-lg">
-          Get access to VIP football
-          predictions, probabilities,
-          detailed analysis and premium
-          prediction insights.
+        Unlock full prediction details,
+        including complete probabilities,
+        predicted scores, confidence,
+        detailed analysis and premium insights.
         </p>
       </section>
 
@@ -125,8 +125,8 @@ export default function SubscribeClient() {
               </div>
 
               <p className="text-sm leading-6 text-text-secondary">
-                Full access to VIP
-                predictions
+              Full access to VIP
+              prediction details
               </p>
             </div>
 
@@ -148,7 +148,7 @@ export default function SubscribeClient() {
 
               <p className="text-sm leading-6 text-text-secondary">
                 Match analysis and
-                predicted score details
+                predicted correct score details
               </p>
             </div>
 
@@ -234,8 +234,8 @@ export default function SubscribeClient() {
                 </div>
 
                 <p className="text-sm leading-6 text-text-secondary">
-                  Full access to VIP
-                  predictions
+                Full access to VIP
+                prediction details
                 </p>
               </div>
 
@@ -257,7 +257,7 @@ export default function SubscribeClient() {
 
                 <p className="text-sm leading-6 text-text-secondary">
                   Match analysis and
-                  predicted score details
+                  predicted correct score details
                 </p>
               </div>
 
@@ -327,7 +327,7 @@ export default function SubscribeClient() {
             </h3>
 
             <p className="mt-2 text-sm leading-6 text-text-muted">
-              See home, draw and away
+              See Correct Score and home, draw and away
               probability data.
             </p>
           </div>

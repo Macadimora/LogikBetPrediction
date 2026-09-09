@@ -14,13 +14,8 @@ type PredictionStatus =
   | "COMPLETED"
   | "CANCELLED";
 
-type PredictionAccess =
-  | "FREE"
-  | "VIP";
-
 type Prediction = {
   id: string;
-  access: PredictionAccess;
   source:
     | "PLAYER_ELO"
     | "ADMIN";
@@ -69,7 +64,6 @@ type Prediction = {
 };
 
 type EditablePredictionField =
-  | "access"
   | "status"
   | "pHome"
   | "pDraw"
@@ -248,16 +242,6 @@ export default function AdminPredictionsPage() {
           }
 
           if (
-            field === "access"
-          ) {
-            return {
-              ...prediction,
-              access:
-                value as PredictionAccess,
-            };
-          }
-
-          if (
             field === "status"
           ) {
             return {
@@ -382,9 +366,6 @@ export default function AdminPredictionsPage() {
             },
 
             body: JSON.stringify({
-              access:
-                prediction.access,
-
               status:
                 prediction.status,
 
@@ -565,7 +546,7 @@ export default function AdminPredictionsPage() {
         0;
 
       setMessage(
-        `PlayerElo sync completed. ${created} new drafts, ${updated} updated, ${skipped} skipped.`
+        `PlayerElo sync completed. ${created} new predictions, ${updated} updated, ${skipped} skipped.`
       );
 
       await loadPredictions();
@@ -711,11 +692,12 @@ export default function AdminPredictionsPage() {
 
             <p className="mt-3 max-w-2xl text-sm leading-6 text-text-secondary sm:text-base">
               Review imported PlayerElo
-              data, configure FREE or VIP
-              access, edit prediction
+              data, edit prediction
               details and control when
               each prediction is
-              published.
+              published. All published
+              matches remain visible;
+              VIP unlocks deeper details.
             </p>
           </div>
 
@@ -908,7 +890,7 @@ export default function AdminPredictionsPage() {
 
             <p className="mt-2 text-sm text-text-muted">
               Run PlayerElo sync to
-              import prediction drafts.
+              import predictions.
             </p>
           </div>
         ) : filteredPredictions.length ===
@@ -972,16 +954,6 @@ export default function AdminPredictionsPage() {
                                 : "Admin"}
                             </span>
 
-                            <span
-                              className={
-                                prediction.access ===
-                                "VIP"
-                                  ? "rounded-full border border-brand/20 bg-brand/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-brand"
-                                  : "rounded-full border border-theme-border bg-surface-soft px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-text-secondary"
-                              }
-                            >
-                              {prediction.access}
-                            </span>
 
                             <span className="rounded-full border border-theme-border bg-surface-soft px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-text-secondary">
                               {prediction.status}
@@ -1242,33 +1214,6 @@ export default function AdminPredictionsPage() {
                             </span>
                           </label>
 
-                          <label className="block">
-                            <span className="text-xs font-bold text-text-muted">
-                              Access
-                            </span>
-
-                            <select
-                              value={
-                                prediction.access
-                              }
-                              onChange={(e) =>
-                                updatePrediction(
-                                  prediction.id,
-                                  "access",
-                                  e.target.value
-                                )
-                              }
-                              className={`${inputClass} mt-2`}
-                            >
-                              <option value="FREE">
-                                FREE
-                              </option>
-
-                              <option value="VIP">
-                                VIP
-                              </option>
-                            </select>
-                          </label>
                         </div>
                       </div>
 

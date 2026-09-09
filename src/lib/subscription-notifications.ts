@@ -61,7 +61,7 @@ export async function createSubscriptionExpiredNotification({
         message:
           `Your ${planName} subscription has expired` +
           `${formattedExpiry ? ` on ${formattedExpiry}` : ""}. ` +
-          `You no longer have access to VIP predictions. ` +
+          `You no longer have access to full VIP prediction details. ` +
           `Subscription ID: ${subscriptionId}.`,
         sentAt: new Date(),
         readAt: null,
@@ -128,7 +128,7 @@ export async function createSubscriptionActivatedNotification({
           `Your ${planName} subscription is now active` +
           `${formattedStart ? ` from ${formattedStart}` : ""}` +
           `${formattedExpiry ? ` until ${formattedExpiry}` : ""}. ` +
-          `You now have access to VIP predictions. ` +
+          `You now have access to full VIP prediction details. ` +
           `Subscription ID: ${subscriptionId}.`,
         sentAt: new Date(),
         readAt: null,
