@@ -32,13 +32,16 @@ export default function MobileSiteMenu({
   }
 
   return (
-    <div className="lg:hidden">
-      <div className="flex items-center gap-2">
+    <div className="ml-auto lg:hidden">
+      {/* Mobile controls */}
+      <div className="flex items-center justify-end gap-2">
         <ThemeToggle />
 
         <button
           type="button"
-          onClick={() => setOpen((current) => !current)}
+          onClick={() =>
+            setOpen((current) => !current)
+          }
           aria-label="Toggle navigation menu"
           aria-expanded={open}
           className="flex h-11 w-11 items-center justify-center rounded-xl border border-theme-border bg-surface-soft text-text-primary transition hover:bg-surface-muted"
@@ -69,6 +72,7 @@ export default function MobileSiteMenu({
         </button>
       </div>
 
+      {/* Mobile menu */}
       {open && (
         <div className="absolute left-0 right-0 top-full border-b border-theme-border bg-background/95 px-5 py-5 shadow-2xl backdrop-blur-xl">
           <nav className="mx-auto flex max-w-7xl flex-col gap-2">
