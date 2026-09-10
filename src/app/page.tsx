@@ -4,7 +4,7 @@ import { expireOldSubscriptions } from "@/lib/subscriptions";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 
-const LAGOS_TIME_ZONE = "Africa/Lagos";
+const APP_TIME_ZONE = "Africa/Lagos";
 
 function formatProbability(value: number | null) {
   if (value === null) return "—";
@@ -56,7 +56,7 @@ function formatKickoff(value: Date) {
   return new Intl.DateTimeFormat("en-NG", {
     dateStyle: "medium",
     timeStyle: "short",
-    timeZone: LAGOS_TIME_ZONE,
+    timeZone: APP_TIME_ZONE,
   }).format(value);
 }
 
@@ -131,14 +131,32 @@ export default async function Home() {
   } as const;
 
   /*
-   * The sync process removes fixtures older than 3 days,
-   * so the homepage can safely show every remaining
-   * published prediction.
+   * Show only predictions whose kickoff falls on the
+   * current calendar day used by the platform.
    *
-   * Upcoming matches come first, nearest kickoff first.
-   * Recent past matches follow, newest kickoff first.
+   * The platform currently uses Africa/Lagos as its official
+   * timezone so every visitor sees the same daily prediction slate.
    */
-  const upcomingPredictions = await prisma.prediction.findMany({
+  const lagosDateParts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: APP_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+
+  const year = lagosDateParts.find((part) => part.type === "year")!.value;
+  const month = lagosDateParts.find((part) => part.type === "month")!.value;
+  const day = lagosDateParts.find((part) => part.type === "day")!.value;
+
+  const startOfToday = new Date(
+    `${year}-${month}-${day}T00:00:00+01:00`
+  );
+
+  const startOfTomorrow = new Date(
+    startOfToday.getTime() + 24 * 60 * 60 * 1000
+  );
+
+  const predictions = await prisma.prediction.findMany({
     where: {
       status: "PUBLISHED",
       pHome: { not: null },
@@ -146,7 +164,8 @@ export default async function Home() {
       pAway: { not: null },
       fixture: {
         kickoffTime: {
-          gte: now,
+          gte: startOfToday,
+          lt: startOfTomorrow,
         },
       },
     },
@@ -156,34 +175,8 @@ export default async function Home() {
         kickoffTime: "asc",
       },
     },
-    take: 100,
+    take: 200,
   });
-
-  const recentPastPredictions = await prisma.prediction.findMany({
-    where: {
-      status: "PUBLISHED",
-      pHome: { not: null },
-      pDraw: { not: null },
-      pAway: { not: null },
-      fixture: {
-        kickoffTime: {
-          lt: now,
-        },
-      },
-    },
-    select: predictionSelect,
-    orderBy: {
-      fixture: {
-        kickoffTime: "desc",
-      },
-    },
-    take: 100,
-  });
-
-  const predictions = [
-    ...upcomingPredictions,
-    ...recentPastPredictions,
-  ];
 
   function groupByLeague<T extends { fixture: { leagueName: string | null } }>(items: T[]) {
     return items.reduce<Record<string, T[]>>((groups, item) => {
@@ -285,7 +278,7 @@ export default async function Home() {
                   </div>
                   <div className="rounded-2xl border border-theme-border bg-surface-soft p-4 sm:p-5">
                     <p className="text-xs text-text-muted">Feed</p>
-                    <p className="mt-2 text-lg font-black">Rolling 3-Day Feed</p>
+                    <p className="mt-2 text-lg font-black">Today's Feed</p>
                   </div>
                 </div>
               </div>
@@ -300,7 +293,7 @@ export default async function Home() {
             <p className="text-sm font-bold uppercase tracking-[0.18em] text-brand">Latest Predictions</p>
             <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">Latest football predictions</h2>
             <p className="mt-4 max-w-2xl leading-7 text-text-secondary">
-              All published predictions currently retained in the rolling 3-day feed are shown here. Upcoming matches appear first, followed by the most recent completed fixtures. Free users get the AI main pick, while VIP unlocks the full prediction details.
+              All published predictions for today are shown here in kickoff order. Free users get the AI main pick, while VIP unlocks the full prediction details.
             </p>
           </div>
 
@@ -461,7 +454,7 @@ export default async function Home() {
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-surface-soft text-xl">⚽</div>
             <p className="mt-5 text-lg font-bold">No daily predictions available yet</p>
             <p className="mt-2 text-sm text-text-muted">
-              There are no published predictions in the current rolling 3-day feed. New AI picks will appear here automatically once they are available.
+              There are no published predictions for today yet. New AI picks will appear here automatically once they are available.
             </p>
           </div>
         )}

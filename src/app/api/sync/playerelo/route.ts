@@ -1,32 +1,42 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@/auth";
 import { syncPlayerEloPredictions } from "@/lib/playerelo-sync";
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
+    const authHeader = request.headers.get("authorization");
 
-    if (!session?.user) {
-      return NextResponse.json(
-        {
-          error: "Unauthorized",
-        },
-        {
-          status: 401,
-        }
-      );
-    }
+    const cronSecret = process.env.CRON_SECRET;
 
-    if (session.user.role !== "ADMIN") {
-      return NextResponse.json(
-        {
-          error: "Forbidden",
-        },
-        {
-          status: 403,
-        }
-      );
+    const isCronRequest =
+      cronSecret &&
+      authHeader === `Bearer ${cronSecret}`;
+
+    if (!isCronRequest) {
+      const session = await auth();
+
+      if (!session?.user) {
+        return NextResponse.json(
+          {
+            error: "Unauthorized",
+          },
+          {
+            status: 401,
+          }
+        );
+      }
+
+      if (session.user.role !== "ADMIN") {
+        return NextResponse.json(
+          {
+            error: "Forbidden",
+          },
+          {
+            status: 403,
+          }
+        );
+      }
     }
 
     const result =

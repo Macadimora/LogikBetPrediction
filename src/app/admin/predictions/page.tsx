@@ -159,39 +159,60 @@ export default function AdminPredictionsPage() {
     loadPredictions();
   }, []);
 
+  const activePredictions =
+    useMemo(() => {
+      const oneDayAgo =
+        Date.now() -
+        24 * 60 * 60 * 1000;
+
+      return predictions.filter(
+        (prediction) => {
+          const kickoffTime =
+            new Date(
+              prediction.fixture.kickoffTime
+            ).getTime();
+
+          return (
+            !Number.isNaN(kickoffTime) &&
+            kickoffTime >= oneDayAgo
+          );
+        }
+      );
+    }, [predictions]);
+
   const reviewCount =
     useMemo(() => {
-      return predictions.filter(
+      return activePredictions.filter(
         (prediction) =>
           prediction.source ===
             "PLAYER_ELO" &&
           prediction.status ===
             "DRAFT"
       ).length;
-    }, [predictions]);
+    }, [activePredictions]);
 
   const publishedCount =
     useMemo(() => {
-      return predictions.filter(
+      return activePredictions.filter(
         (prediction) =>
           prediction.status ===
           "PUBLISHED"
       ).length;
-    }, [predictions]);
+    }, [activePredictions]);
 
   const scheduledCount =
     useMemo(() => {
-      return predictions.filter(
+      return activePredictions.filter(
         (prediction) =>
           prediction.status ===
           "SCHEDULED"
       ).length;
-    }, [predictions]);
+    }, [activePredictions]);
 
   const filteredPredictions =
     useMemo(() => {
       if (filter === "REVIEW") {
-        return predictions.filter(
+        return activePredictions.filter(
           (prediction) =>
             prediction.source ===
               "PLAYER_ELO" &&
@@ -203,7 +224,7 @@ export default function AdminPredictionsPage() {
       if (
         filter === "PUBLISHED"
       ) {
-        return predictions.filter(
+        return activePredictions.filter(
           (prediction) =>
             prediction.status ===
             "PUBLISHED"
@@ -213,15 +234,15 @@ export default function AdminPredictionsPage() {
       if (
         filter === "SCHEDULED"
       ) {
-        return predictions.filter(
+        return activePredictions.filter(
           (prediction) =>
             prediction.status ===
             "SCHEDULED"
         );
       }
 
-      return predictions;
-    }, [predictions, filter]);
+      return activePredictions;
+    }, [activePredictions, filter]);
 
   function updatePrediction(
     id: string,
@@ -745,7 +766,7 @@ export default function AdminPredictionsPage() {
               </p>
 
               <p className="mt-2 text-3xl font-black">
-                {predictions.length}
+                {activePredictions.length}
               </p>
 
               <p className="mt-1 text-xs text-text-muted">
@@ -810,7 +831,7 @@ export default function AdminPredictionsPage() {
                   filter === "ALL"
                 )}
               >
-                All ({predictions.length})
+                All ({activePredictions.length})
               </button>
 
               <button
@@ -877,7 +898,7 @@ export default function AdminPredictionsPage() {
               Loading predictions...
             </p>
           </div>
-        ) : predictions.length ===
+        ) : activePredictions.length ===
           0 ? (
           <div className="mt-6 rounded-3xl border border-dashed border-theme-border bg-surface p-12 text-center">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand/10 text-2xl">
