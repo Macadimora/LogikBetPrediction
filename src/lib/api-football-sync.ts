@@ -49,6 +49,12 @@ type ApiFixture = {
 type ApiPrediction = {
   predictions?: {
     advice?: string | null;
+    under_over?: string | null;
+    winner?: {
+      id?: number | null;
+      name?: string | null;
+      comment?: string | null;
+    };
     percent?: {
       home?: string | null;
       draw?: string | null;
@@ -61,6 +67,11 @@ type PredictedScore = {
   home: number;
   away: number;
 };
+
+type PredictedOutcome =
+  | "HOME"
+  | "DRAW"
+  | "AWAY";
 
 function getPlatformDate(): string {
   const parts = new Intl.DateTimeFormat("en-GB", {
@@ -116,38 +127,113 @@ function parseProbability(
 function derivePredictedScore(
   pHome: number,
   pDraw: number,
-  pAway: number
+  pAway: number,
+  homeTeam: string,
+  awayTeam: string,
+  winnerName?: string | null,
+  advice?: string | null,
+  underOver?: string | null
 ): PredictedScore {
-  const strongest = Math.max(
-    pHome,
-    pDraw,
-    pAway
-  );
+  const normalizedWinner =
+    winnerName?.trim().toLowerCase() || "";
 
-  if (strongest === pDraw) {
-    return pDraw >= 0.4
-      ? { home: 1, away: 1 }
-      : { home: 0, away: 0 };
+  const normalizedHomeTeam =
+    homeTeam.trim().toLowerCase();
+
+  const normalizedAwayTeam =
+    awayTeam.trim().toLowerCase();
+
+  const normalizedAdvice =
+    advice?.trim().toLowerCase() || "";
+
+  let outcome: PredictedOutcome;
+
+  if (
+    normalizedWinner &&
+    normalizedWinner === normalizedHomeTeam
+  ) {
+    outcome = "HOME";
+  } else if (
+    normalizedWinner &&
+    normalizedWinner === normalizedAwayTeam
+  ) {
+    outcome = "AWAY";
+  } else if (
+    normalizedAdvice.includes(
+      normalizedHomeTeam
+    ) &&
+    !normalizedAdvice.includes(
+      normalizedAwayTeam
+    )
+  ) {
+    outcome = "HOME";
+  } else if (
+    normalizedAdvice.includes(
+      normalizedAwayTeam
+    ) &&
+    !normalizedAdvice.includes(
+      normalizedHomeTeam
+    )
+  ) {
+    outcome = "AWAY";
+  } else if (
+    pHome > pDraw &&
+    pHome > pAway
+  ) {
+    outcome = "HOME";
+  } else if (
+    pAway > pHome &&
+    pAway > pDraw
+  ) {
+    outcome = "AWAY";
+  } else {
+    outcome = "DRAW";
   }
 
-  if (strongest === pHome) {
-    if (pHome >= 0.65) {
-      return { home: 2, away: 0 };
+  const goalsGuidance = `${
+    advice || ""
+  } ${underOver || ""}`.toLowerCase();
+
+  const expectsThreeOrMoreGoals =
+    /(?:\+|over\s*)2\.5|(?:\+|over\s*)3\.5/.test(
+      goalsGuidance
+    );
+
+  const expectsTwoOrMoreGoals =
+    /(?:\+|over\s*)1\.5/.test(
+      goalsGuidance
+    );
+
+  if (outcome === "DRAW") {
+    return expectsThreeOrMoreGoals
+      ? { home: 2, away: 2 }
+      : { home: 1, away: 1 };
+  }
+
+  if (outcome === "HOME") {
+    if (expectsThreeOrMoreGoals) {
+      return { home: 2, away: 1 };
     }
 
-    if (pHome >= 0.5) {
-      return { home: 2, away: 1 };
+    if (
+      expectsTwoOrMoreGoals ||
+      pHome >= 0.6
+    ) {
+      return { home: 2, away: 0 };
     }
 
     return { home: 1, away: 0 };
   }
 
-  if (pAway >= 0.65) {
-    return { home: 0, away: 2 };
+  if (expectsThreeOrMoreGoals) {
+    return { home: 1, away: 2 };
   }
 
-  if (pAway >= 0.5) {
-    return { home: 1, away: 2 };
+  if (
+    expectsTwoOrMoreGoals ||
+    pAway >= 0.6
+  ) {
+    return { home: 0, away: 2 };
   }
 
   return { home: 0, away: 1 };
@@ -382,11 +468,20 @@ export async function syncApiFootballPredictions() {
           prediction.source === "PLAYER_ELO"
       );
 
+    const analysis =
+      apiPrediction.predictions?.advice?.trim() ||
+      null;
+
     const predictedScore =
       derivePredictedScore(
         pHome,
         pDraw,
-        pAway
+        pAway,
+        item.teams.home.name,
+        item.teams.away.name,
+        apiPrediction.predictions?.winner?.name,
+        analysis,
+        apiPrediction.predictions?.under_over
       );
 
     const confidence = Math.max(
@@ -394,10 +489,6 @@ export async function syncApiFootballPredictions() {
       pDraw,
       pAway
     );
-
-    const analysis =
-      apiPrediction.predictions?.advice?.trim() ||
-      null;
 
     if (existingPrediction) {
       const shouldAutoPublish =
