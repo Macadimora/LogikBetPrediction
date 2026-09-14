@@ -197,6 +197,10 @@ export async function syncPlayerEloPredictions() {
   let invalidKickoffDates = 0;
   let historicalPredictionsSkipped = 0;
 
+  let missingProbabilities = 0;
+  let missingFixtureId = 0;
+  let missingKickoffTime = 0;
+
   const validKickoffTimes: Date[] = [];
 
   /*
@@ -217,6 +221,7 @@ export async function syncPlayerEloPredictions() {
       item.p_away != null;
 
     if (!hasProbabilities) {
+      missingProbabilities++;
       predictionsSkipped++;
       continue;
     }
@@ -226,10 +231,14 @@ export async function syncPlayerEloPredictions() {
      * required.
      */
 
-    if (
-      !item.fixture_id ||
-      !item.kickoff_time
-    ) {
+    if (!item.fixture_id) {
+      missingFixtureId++;
+      predictionsSkipped++;
+      continue;
+    }
+
+    if (!item.kickoff_time) {
+      missingKickoffTime++;
       predictionsSkipped++;
       continue;
     }
@@ -628,6 +637,10 @@ export async function syncPlayerEloPredictions() {
 
       historicalPredictionsSkipped,
       invalidKickoffDates,
+
+      missingProbabilities,
+      missingFixtureId,
+      missingKickoffTime,
     },
   };
 
