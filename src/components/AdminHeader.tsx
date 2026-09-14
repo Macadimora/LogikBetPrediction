@@ -18,6 +18,13 @@ type AdminHeaderProps = {
 export default async function AdminHeader({
   activePage = "overview",
 }: AdminHeaderProps) {
+  let siteName =
+  "LogikBetPrediction";
+
+let logoUrl: string | null =
+  null;
+
+try {
   const settings =
     await prisma.siteSetting.findFirst({
       orderBy: {
@@ -29,12 +36,18 @@ export default async function AdminHeader({
       },
     });
 
-  const siteName =
+  siteName =
     settings?.siteName ||
     "LogikBetPrediction";
 
-  const logoUrl =
+  logoUrl =
     settings?.logoUrl || null;
+} catch (error) {
+  console.error(
+    "Unable to load admin header settings. Using default branding:",
+    error
+  );
+}
 
   function desktopNavClass(
     page: AdminHeaderProps["activePage"]

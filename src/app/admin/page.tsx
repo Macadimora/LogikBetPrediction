@@ -2,7 +2,7 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 
-import PlayerEloSyncButton from "./PlayerEloSyncButton";
+import ApiFootballSyncButton from "./ApiFootballSyncButton";
 import AdminHeader from "@/components/AdminHeader";
 
 export default async function AdminPage() {
@@ -234,7 +234,7 @@ export default async function AdminPage() {
               </p>
             </Link>
 
-            {/* PlayerElo sync */}
+            {/* API-Football sync */}
             <div className="relative overflow-hidden rounded-3xl border border-brand/20 bg-surface p-6">
               <div className="pointer-events-none absolute -right-16 -top-16 h-44 w-44 rounded-full bg-brand/10 blur-[70px]" />
 
@@ -244,7 +244,7 @@ export default async function AdminPage() {
                 </div>
 
                 <p className="mt-6 text-xs font-black uppercase tracking-[0.16em] text-brand">
-                  PlayerElo
+                  API-Football
                 </p>
 
                 <h3 className="mt-2 text-2xl font-black text-text-primary">
@@ -252,13 +252,12 @@ export default async function AdminPage() {
                 </h3>
 
                 <p className="mt-3 text-sm leading-6 text-text-secondary">
-                  Synchronize the latest PlayerElo
-                  fixtures and prediction data into the
-                  admin review workflow.
+                  Synchronize today&apos;s top fixtures
+                  and prediction data through API-Football.
                 </p>
 
                 <div className="mt-6">
-                  <PlayerEloSyncButton />
+                  <ApiFootballSyncButton />
                 </div>
               </div>
             </div>

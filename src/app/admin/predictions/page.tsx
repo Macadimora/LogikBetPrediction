@@ -18,6 +18,7 @@ type Prediction = {
   id: string;
   source:
     | "PLAYER_ELO"
+    | "API_FOOTBALL"
     | "ADMIN";
   status: PredictionStatus;
 
@@ -184,8 +185,8 @@ export default function AdminPredictionsPage() {
     useMemo(() => {
       return activePredictions.filter(
         (prediction) =>
-          prediction.source ===
-            "PLAYER_ELO" &&
+          prediction.source !==
+            "ADMIN" &&
           prediction.status ===
             "DRAFT"
       ).length;
@@ -214,8 +215,8 @@ export default function AdminPredictionsPage() {
       if (filter === "REVIEW") {
         return activePredictions.filter(
           (prediction) =>
-            prediction.source ===
-              "PLAYER_ELO" &&
+            prediction.source !==
+              "ADMIN" &&
             prediction.status ===
               "DRAFT"
         );
@@ -530,7 +531,7 @@ export default function AdminPredictionsPage() {
     }
   }
 
-  async function syncPlayerElo() {
+  async function syncApiFootball() {
     try {
       setSyncing(true);
       setMessage("");
@@ -538,7 +539,7 @@ export default function AdminPredictionsPage() {
 
       const response =
         await fetch(
-          "/api/sync/playerelo",
+          "/api/sync/api-football",
           {
             method: "POST",
           }
@@ -550,7 +551,7 @@ export default function AdminPredictionsPage() {
       if (!response.ok) {
         throw new Error(
           data.error ||
-            "PlayerElo sync failed."
+            "API-Football sync failed."
         );
       }
 
@@ -567,7 +568,7 @@ export default function AdminPredictionsPage() {
         0;
 
       setMessage(
-        `PlayerElo sync completed. ${created} new predictions, ${updated} updated, ${skipped} skipped.`
+        `API-Football sync completed. ${created} new predictions, ${updated} updated, ${skipped} skipped.`
       );
 
       await loadPredictions();
@@ -575,7 +576,7 @@ export default function AdminPredictionsPage() {
       setError(
         err instanceof Error
           ? err.message
-          : "PlayerElo sync failed."
+          : "API-Football sync failed."
       );
     } finally {
       setSyncing(false);
@@ -665,8 +666,8 @@ export default function AdminPredictionsPage() {
     prediction: Prediction
   ) {
     return (
-      prediction.source ===
-        "PLAYER_ELO" &&
+      prediction.source !==
+        "ADMIN" &&
       prediction.status ===
         "DRAFT"
     );
@@ -712,7 +713,7 @@ export default function AdminPredictionsPage() {
             </h1>
 
             <p className="mt-3 max-w-2xl text-sm leading-6 text-text-secondary sm:text-base">
-              Review imported PlayerElo
+              Review imported API-Football
               data, edit prediction
               details and control when
               each prediction is
@@ -724,7 +725,7 @@ export default function AdminPredictionsPage() {
 
           <button
             type="button"
-            onClick={syncPlayerElo}
+            onClick={syncApiFootball}
             disabled={syncing}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-5 py-3 text-sm font-black text-brand-foreground transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -739,8 +740,8 @@ export default function AdminPredictionsPage() {
             </span>
 
             {syncing
-              ? "Syncing PlayerElo..."
-              : "Sync PlayerElo"}
+              ? "Syncing API-Football..."
+              : "Sync API-Football"}
           </button>
         </section>
 
@@ -784,7 +785,7 @@ export default function AdminPredictionsPage() {
               </p>
 
               <p className="mt-1 text-xs text-text-muted">
-                PlayerElo drafts
+                Provider drafts
               </p>
             </div>
 
@@ -910,7 +911,7 @@ export default function AdminPredictionsPage() {
             </h2>
 
             <p className="mt-2 text-sm text-text-muted">
-              Run PlayerElo sync to
+              Run API-Football sync to
               import predictions.
             </p>
           </div>
@@ -963,16 +964,19 @@ export default function AdminPredictionsPage() {
 
                             <span
                               className={
-                                prediction.source ===
-                                "PLAYER_ELO"
+                                prediction.source !==
+                                "ADMIN"
                                   ? "rounded-full border border-sky-500/20 bg-sky-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-sky-300"
                                   : "rounded-full border border-theme-border bg-surface-soft px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-text-secondary"
                               }
                             >
                               {prediction.source ===
-                              "PLAYER_ELO"
-                                ? "PlayerElo"
-                                : "Admin"}
+                              "API_FOOTBALL"
+                                ? "API-Football"
+                                : prediction.source ===
+                                    "PLAYER_ELO"
+                                  ? "PlayerElo"
+                                  : "Admin"}
                             </span>
 
 

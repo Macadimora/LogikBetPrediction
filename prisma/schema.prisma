@@ -256,6 +256,7 @@ enum PredictionAccess {
 
 enum PredictionSource {
   PLAYER_ELO
+  API_FOOTBALL
   ADMIN
 }
 
