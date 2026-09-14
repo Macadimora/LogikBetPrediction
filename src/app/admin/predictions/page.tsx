@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { FormEvent } from "react";
 import {
   useEffect,
   useMemo,
@@ -82,6 +83,43 @@ type PredictionFilter =
   | "PUBLISHED"
   | "SCHEDULED";
 
+type ManualPredictionForm = {
+  leagueName: string;
+  homeTeam: string;
+  awayTeam: string;
+  kickoffTime: string;
+  pHome: string;
+  pDraw: string;
+  pAway: string;
+  predictedHomeScore: string;
+  predictedAwayScore: string;
+  confidence: string;
+  title: string;
+  analysis: string;
+  status:
+    | "DRAFT"
+    | "SCHEDULED"
+    | "PUBLISHED";
+  scheduledFor: string;
+};
+
+const emptyManualPrediction: ManualPredictionForm = {
+  leagueName: "",
+  homeTeam: "",
+  awayTeam: "",
+  kickoffTime: "",
+  pHome: "",
+  pDraw: "",
+  pAway: "",
+  predictedHomeScore: "",
+  predictedAwayScore: "",
+  confidence: "",
+  title: "",
+  analysis: "",
+  status: "PUBLISHED",
+  scheduledFor: "",
+};
+
 export default function AdminPredictionsPage() {
   const [
     predictions,
@@ -93,6 +131,17 @@ export default function AdminPredictionsPage() {
 
   const [syncing, setSyncing] =
     useState(false);
+
+  const [showManualForm, setShowManualForm] =
+    useState(false);
+
+  const [creatingManual, setCreatingManual] =
+    useState(false);
+
+  const [manualForm, setManualForm] =
+    useState<ManualPredictionForm>({
+      ...emptyManualPrediction,
+    });
 
   const [savingId, setSavingId] =
     useState<string | null>(null);
@@ -531,6 +580,110 @@ export default function AdminPredictionsPage() {
     }
   }
 
+  function updateManualField(
+    field: keyof ManualPredictionForm,
+    value: string
+  ) {
+    setManualForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
+  async function createManualPrediction(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    setMessage("");
+    setError("");
+
+    const kickoffDate = new Date(
+      manualForm.kickoffTime
+    );
+
+    if (
+      Number.isNaN(kickoffDate.getTime())
+    ) {
+      setError(
+        "Choose a valid fixture kickoff date and time."
+      );
+      return;
+    }
+
+    let scheduledFor: string | null = null;
+
+    if (manualForm.status === "SCHEDULED") {
+      const scheduledDate = new Date(
+        manualForm.scheduledFor
+      );
+
+      if (
+        Number.isNaN(
+          scheduledDate.getTime()
+        )
+      ) {
+        setError(
+          "Choose a valid scheduled publication date and time."
+        );
+        return;
+      }
+
+      scheduledFor =
+        scheduledDate.toISOString();
+    }
+
+    try {
+      setCreatingManual(true);
+
+      const response = await fetch(
+        "/api/admin/predictions",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            ...manualForm,
+            kickoffTime:
+              kickoffDate.toISOString(),
+            scheduledFor,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+            "Failed to create manual prediction."
+        );
+      }
+
+      setManualForm({
+        ...emptyManualPrediction,
+      });
+      setShowManualForm(false);
+      setFilter("ALL");
+      setMessage(
+        data.message ||
+          "Manual prediction created successfully."
+      );
+
+      await loadPredictions();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to create manual prediction."
+      );
+    } finally {
+      setCreatingManual(false);
+    }
+  }
+
   async function syncApiFootball() {
     try {
       setSyncing(true);
@@ -723,27 +876,371 @@ export default function AdminPredictionsPage() {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={syncApiFootball}
-            disabled={syncing}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-5 py-3 text-sm font-black text-brand-foreground transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <span
-              className={
-                syncing
-                  ? "animate-spin"
-                  : ""
-              }
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => {
+                setShowManualForm(
+                  (current) => !current
+                );
+                setMessage("");
+                setError("");
+              }}
+              className="inline-flex items-center justify-center rounded-xl border border-brand/30 bg-brand/10 px-5 py-3 text-sm font-black text-brand transition hover:bg-brand/15"
             >
-              ↻
-            </span>
+              {showManualForm
+                ? "Close Manual Form"
+                : "+ Add Manual Prediction"}
+            </button>
 
-            {syncing
-              ? "Syncing API-Football..."
-              : "Sync API-Football"}
-          </button>
+            <button
+              type="button"
+              onClick={syncApiFootball}
+              disabled={syncing}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-5 py-3 text-sm font-black text-brand-foreground transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <span
+                className={
+                  syncing
+                    ? "animate-spin"
+                    : ""
+                }
+              >
+                ↻
+              </span>
+
+              {syncing
+                ? "Syncing API-Football..."
+                : "Sync API-Football"}
+            </button>
+          </div>
         </section>
+
+        {/* Manual prediction form */}
+        {showManualForm && (
+          <section className="mt-8 rounded-3xl border border-brand/20 bg-surface p-5 sm:p-7">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-brand">
+                Manual Entry
+              </p>
+
+              <h2 className="mt-2 text-2xl font-black text-text-primary">
+                Add a prediction
+              </h2>
+
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-text-secondary">
+                Add your own fixture and prediction. Enter probabilities as percentages; Home, Draw and Away must total 100%.
+              </p>
+            </div>
+
+            <form
+              onSubmit={createManualPrediction}
+              className="mt-6 space-y-6"
+            >
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <label className="space-y-2 xl:col-span-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-text-muted">
+                    League
+                  </span>
+                  <input
+                    type="text"
+                    required
+                    value={manualForm.leagueName}
+                    onChange={(event) =>
+                      updateManualField(
+                        "leagueName",
+                        event.target.value
+                      )
+                    }
+                    placeholder="Premier League"
+                    className={inputClass}
+                  />
+                </label>
+
+                <label className="space-y-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-text-muted">
+                    Home team
+                  </span>
+                  <input
+                    type="text"
+                    required
+                    value={manualForm.homeTeam}
+                    onChange={(event) =>
+                      updateManualField(
+                        "homeTeam",
+                        event.target.value
+                      )
+                    }
+                    placeholder="Home team"
+                    className={inputClass}
+                  />
+                </label>
+
+                <label className="space-y-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-text-muted">
+                    Away team
+                  </span>
+                  <input
+                    type="text"
+                    required
+                    value={manualForm.awayTeam}
+                    onChange={(event) =>
+                      updateManualField(
+                        "awayTeam",
+                        event.target.value
+                      )
+                    }
+                    placeholder="Away team"
+                    className={inputClass}
+                  />
+                </label>
+
+                <label className="space-y-2 md:col-span-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-text-muted">
+                    Fixture kickoff
+                  </span>
+                  <input
+                    type="datetime-local"
+                    required
+                    min={getDateTimeLocalValue(
+                      new Date().toISOString()
+                    )}
+                    value={manualForm.kickoffTime}
+                    onChange={(event) =>
+                      updateManualField(
+                        "kickoffTime",
+                        event.target.value
+                      )
+                    }
+                    className={inputClass}
+                  />
+                </label>
+
+                <label className="space-y-2 md:col-span-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-text-muted">
+                    Publication status
+                  </span>
+                  <select
+                    value={manualForm.status}
+                    onChange={(event) =>
+                      updateManualField(
+                        "status",
+                        event.target.value
+                      )
+                    }
+                    className={inputClass}
+                  >
+                    <option value="PUBLISHED">
+                      Publish immediately
+                    </option>
+                    <option value="DRAFT">
+                      Save as draft
+                    </option>
+                    <option value="SCHEDULED">
+                      Schedule publication
+                    </option>
+                  </select>
+                </label>
+
+                {manualForm.status ===
+                  "SCHEDULED" && (
+                  <label className="space-y-2 md:col-span-2">
+                    <span className="text-xs font-black uppercase tracking-wider text-text-muted">
+                      Publish at
+                    </span>
+                    <input
+                      type="datetime-local"
+                      required
+                      min={getDateTimeLocalValue(
+                        new Date().toISOString()
+                      )}
+                      value={manualForm.scheduledFor}
+                      onChange={(event) =>
+                        updateManualField(
+                          "scheduledFor",
+                          event.target.value
+                        )
+                      }
+                      className={inputClass}
+                    />
+                  </label>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-theme-border bg-surface-soft p-4 sm:p-5">
+                <p className="text-sm font-black text-text-primary">
+                  Match probabilities
+                </p>
+                <p className="mt-1 text-xs leading-5 text-text-muted">
+                  Use values from 0 to 100. The three values must add up to 100.
+                </p>
+
+                <div className="mt-4 grid gap-4 sm:grid-cols-3">
+                  {(
+                    [
+                      ["pHome", "Home %"],
+                      ["pDraw", "Draw %"],
+                      ["pAway", "Away %"],
+                    ] as const
+                  ).map(([field, label]) => (
+                    <label
+                      key={field}
+                      className="space-y-2"
+                    >
+                      <span className="text-xs font-black uppercase tracking-wider text-text-muted">
+                        {label}
+                      </span>
+                      <input
+                        type="number"
+                        required
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        value={manualForm[field]}
+                        onChange={(event) =>
+                          updateManualField(
+                            field,
+                            event.target.value
+                          )
+                        }
+                        placeholder="0"
+                        className={inputClass}
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <label className="space-y-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-text-muted">
+                    Predicted home score
+                  </span>
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    step="1"
+                    value={manualForm.predictedHomeScore}
+                    onChange={(event) =>
+                      updateManualField(
+                        "predictedHomeScore",
+                        event.target.value
+                      )
+                    }
+                    className={inputClass}
+                  />
+                </label>
+
+                <label className="space-y-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-text-muted">
+                    Predicted away score
+                  </span>
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    step="1"
+                    value={manualForm.predictedAwayScore}
+                    onChange={(event) =>
+                      updateManualField(
+                        "predictedAwayScore",
+                        event.target.value
+                      )
+                    }
+                    className={inputClass}
+                  />
+                </label>
+
+                <label className="space-y-2 sm:col-span-2 lg:col-span-1">
+                  <span className="text-xs font-black uppercase tracking-wider text-text-muted">
+                    Confidence % (optional)
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={manualForm.confidence}
+                    onChange={(event) =>
+                      updateManualField(
+                        "confidence",
+                        event.target.value
+                      )
+                    }
+                    placeholder="75"
+                    className={inputClass}
+                  />
+                </label>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <label className="space-y-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-text-muted">
+                    Prediction title (optional)
+                  </span>
+                  <input
+                    type="text"
+                    value={manualForm.title}
+                    onChange={(event) =>
+                      updateManualField(
+                        "title",
+                        event.target.value
+                      )
+                    }
+                    placeholder="Example: Home win"
+                    className={inputClass}
+                  />
+                </label>
+
+                <label className="space-y-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-text-muted">
+                    Analysis (optional)
+                  </span>
+                  <textarea
+                    rows={3}
+                    value={manualForm.analysis}
+                    onChange={(event) =>
+                      updateManualField(
+                        "analysis",
+                        event.target.value
+                      )
+                    }
+                    placeholder="Add the reasoning or premium insight for this match."
+                    className={inputClass}
+                  />
+                </label>
+              </div>
+
+              <div className="flex flex-col-reverse gap-3 border-t border-theme-border pt-5 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  disabled={creatingManual}
+                  onClick={() => {
+                    setManualForm({
+                      ...emptyManualPrediction,
+                    });
+                    setShowManualForm(false);
+                    setError("");
+                  }}
+                  className="rounded-xl border border-theme-border bg-surface px-5 py-3 text-sm font-black text-text-secondary transition hover:bg-surface-soft hover:text-text-primary disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={creatingManual}
+                  className="rounded-xl bg-brand px-5 py-3 text-sm font-black text-brand-foreground transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {creatingManual
+                    ? "Creating prediction..."
+                    : "Create Prediction"}
+                </button>
+              </div>
+            </form>
+          </section>
+        )}
 
         {/* Messages */}
         {message && (
